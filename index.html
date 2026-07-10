@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>FAXデスク｜林材木店</title>
+<style>
+:root{
+  --bg:#f4f6f9; --card:#fff; --ink:#1c2733; --sub:#68788c; --line:#e3e9f0;
+  --blue:#2563eb; --blue-soft:#eaf1fe; --red:#dc2626; --red-soft:#fdecec;
+  --orange:#d97706; --orange-soft:#fdf3e2; --green:#16a34a; --green-soft:#e8f7ee;
+  --gray-soft:#eef1f5;
+}
+*{box-sizing:border-box; margin:0; padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI","Noto Sans JP",sans-serif;
+  background:var(--bg); color:var(--ink); font-size:15px; line-height:1.6}
+header{background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:50}
+.hwrap{max-width:960px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:10px}
+.logo{font-size:18px; font-weight:800}
+.logo small{font-weight:600; color:var(--sub); margin-left:6px; font-size:12px}
+.hsp{flex:1}
+.iconbtn{border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 12px; cursor:pointer; font-size:13px; color:var(--sub)}
+.iconbtn:hover{background:var(--gray-soft)}
+main{max-width:960px; margin:0 auto; padding:14px 16px 90px}
+.tabs{display:flex; gap:6px; margin-bottom:14px}
+.tab{flex:1; text-align:center; padding:10px 4px; border-radius:10px; border:1px solid var(--line);
+  background:#fff; cursor:pointer; font-weight:700; font-size:14px; color:var(--sub); position:relative}
+.tab.on{background:var(--blue); border-color:var(--blue); color:#fff}
+.tab .badge{position:absolute; top:-6px; right:-2px; background:var(--red); color:#fff; font-size:11px;
+  border-radius:999px; min-width:18px; padding:1px 5px; display:none}
+.card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:12px}
+.lbl{display:block; font-size:13px; font-weight:700; color:var(--sub); margin:12px 0 4px}
+.lbl:first-child{margin-top:0}
+.txt, textarea, select{width:100%; border:1px solid var(--line); border-radius:8px; padding:10px 12px;
+  font-size:15px; font-family:inherit; background:#fff; color:var(--ink)}
+.txt:focus, textarea:focus{outline:2px solid var(--blue-soft); border-color:var(--blue)}
+textarea{resize:vertical; min-height:130px}
+.hint{font-size:12px; color:var(--sub); margin-top:4px}
+.btn{display:inline-block; border:none; border-radius:10px; padding:12px 22px; font-size:15px; font-weight:800;
+  cursor:pointer; background:var(--blue); color:#fff}
+.btn:disabled{opacity:.45; cursor:default}
+.btn.sub{background:#fff; color:var(--ink); border:1px solid var(--line); font-weight:600}
+.btn.danger{background:var(--red)}
+.row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+/* 取引先コンボ */
+.combo{position:relative}
+.combo-list{position:absolute; left:0; right:0; top:calc(100% + 4px); background:#fff; border:1px solid var(--line);
+  border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.12); max-height:280px; overflow:auto; z-index:40; display:none}
+.combo-item{padding:10px 14px; cursor:pointer; display:flex; justify-content:space-between; gap:8px; font-size:14px}
+.combo-item:hover{background:var(--blue-soft)}
+.combo-item .num{color:var(--sub); font-size:13px; white-space:nowrap}
+.chip{display:inline-flex; align-items:center; gap:8px; background:var(--blue-soft); border:1px solid #c7dbfc;
+  border-radius:999px; padding:6px 14px; font-weight:700; font-size:14px}
+.chip .x{cursor:pointer; color:var(--sub); font-weight:400}
+.dest-preview{font-size:13px; color:var(--sub); margin-top:6px}
+.dest-preview b{color:var(--ink)}
+/* 添付 */
+.filelist{margin-top:8px; display:flex; flex-direction:column; gap:6px}
+.fileitem{display:flex; align-items:center; gap:8px; background:var(--gray-soft); border-radius:8px; padding:8px 12px; font-size:13px}
+.fileitem .nm{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.fileitem .rm{cursor:pointer; color:var(--red); font-weight:700; padding:0 4px}
+/* リスト共通 */
+.filters{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px}
+.fchip{border:1px solid var(--line); background:#fff; border-radius:999px; padding:5px 14px; font-size:13px; cursor:pointer; color:var(--sub); font-weight:600}
+.fchip.on{background:var(--ink); color:#fff; border-color:var(--ink)}
+.item{background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:8px}
+.item-top{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.vendor{font-weight:800; font-size:15px}
+.meta{color:var(--sub); font-size:12.5px}
+.pill{border-radius:999px; padding:3px 12px; font-size:12px; font-weight:800; white-space:nowrap}
+.p-red{background:var(--red-soft); color:var(--red)}
+.p-orange{background:var(--orange-soft); color:var(--orange)}
+.p-blue{background:var(--blue-soft); color:var(--blue)}
+.p-green{background:var(--green-soft); color:var(--green)}
+.p-gray{background:var(--gray-soft); color:var(--sub)}
+.item-sub{margin-top:4px; font-size:13.5px; color:var(--ink)}
+.item-actions{display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; align-items:center}
+.abtn{border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 12px; font-size:13px; cursor:pointer; font-weight:600}
+.abtn:hover{background:var(--gray-soft)}
+.abtn.primary{background:var(--blue); border-color:var(--blue); color:#fff}
+.memoinput{border:1px dashed var(--line); border-radius:8px; padding:5px 10px; font-size:13px; flex:1; min-width:140px; font-family:inherit; background:#fffdf2}
+.empty{text-align:center; color:var(--sub); padding:36px 10px; font-size:14px}
+/* モーダル */
+.overlay{position:fixed; inset:0; background:rgba(15,23,42,.5); display:none; align-items:center; justify-content:center; z-index:100; padding:16px}
+.overlay.show{display:flex}
+.modal{background:#fff; border-radius:14px; padding:22px; width:100%; max-width:460px; max-height:90vh; overflow:auto}
+.modal h3{font-size:17px; margin-bottom:12px}
+.kv{display:grid; grid-template-columns:78px 1fr; gap:6px 10px; font-size:14px; margin-bottom:14px}
+.kv .k{color:var(--sub); font-weight:700; font-size:13px}
+.warn{background:var(--orange-soft); color:var(--orange); border-radius:8px; padding:8px 12px; font-size:13px; font-weight:600; margin-bottom:14px}
+/* トースト */
+#toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff;
+  border-radius:10px; padding:10px 20px; font-size:14px; font-weight:600; opacity:0; transition:opacity .25s; z-index:200; pointer-events:none; max-width:90vw}
+#toast.show{opacity:1}
+/* ログイン */
+#gate{position:fixed; inset:0; background:var(--bg); z-index:150; display:flex; align-items:center; justify-content:center; padding:16px}
+.gatebox{background:#fff; border:1px solid var(--line); border-radius:14px; padding:28px; width:100%; max-width:360px}
+.gatebox h2{font-size:19px; margin-bottom:4px}
+.gatebox p{color:var(--sub); font-size:13px; margin-bottom:16px}
+.hidden{display:none !important}
+.spin{display:inline-block; width:14px; height:14px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:sp 1s linear infinite; vertical-align:-2px; margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media(max-width:560px){ .kv{grid-template-columns:70px 1fr} main{padding:10px 10px 90px} }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gatebox">
+    <h2>📠 FAXデスク</h2>
+    <p>林材木店 eFax送受信ツール</p>
+    <label class="lbl">メールアドレス</label>
+    <input class="txt" id="g-email" type="email" autocomplete="username">
+    <label class="lbl">パスワード</label>
+    <input class="txt" id="g-pass" type="password" autocomplete="current-password">
+    <div style="margin-top:16px"><button class="btn" id="g-btn" style="width:100%">ログイン</button></div>
+    <div class="hint" id="g-msg" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<header>
+  <div class="hwrap">
+    <div class="logo">📠 FAXデスク<small>林材木店</small></div>
+    <div class="hsp"></div>
+    <button class="iconbtn" id="btn-refresh">🔄 更新</button>
+    <button class="iconbtn" id="btn-logout">ログアウト</button>
+  </div>
+</header>
+
+<main>
+  <div class="tabs">
+    <div class="tab on" data-tab="send">📤 送信</div>
+    <div class="tab" data-tab="inbox">📥 受信FAX<span class="badge" id="inbox-badge"></span></div>
+    <div class="tab" data-tab="history">📜 送信履歴</div>
+  </div>
+
+  <!-- ============ 送信 ============ -->
+  <section id="tab-send">
+    <div class="card">
+      <label class="lbl">宛先（取引先から選ぶ）</label>
+      <div class="combo" id="combo">
+        <input class="txt" id="c-search" placeholder="取引先名で検索…（例: ナイス）" autocomplete="off">
+        <div class="combo-list" id="c-list"></div>
+      </div>
+      <div id="c-selected" style="margin-top:8px" class="hidden">
+        <span class="chip"><span id="c-name"></span><span id="c-num" style="font-weight:400"></span><span class="x" id="c-clear">✕</span></span>
+      </div>
+      <label class="lbl">または FAX番号を直接入力</label>
+      <input class="txt" id="s-manual" placeholder="例: 0538-42-1138" inputmode="tel">
+      <div class="dest-preview" id="dest-preview"></div>
+
+      <label class="lbl">件名（送付状のタイトルになります）</label>
+      <input class="txt" id="s-subject" placeholder="例:【林材木店】お見積りの件">
+      <label class="lbl">本文（送付状に印字されます）</label>
+      <textarea id="s-body" placeholder="いつもお世話になっております。&#10;株式会社林材木店です。&#10;&#10;（ここに書いた文章がFAX1枚目の送付状になります）"></textarea>
+
+      <label class="lbl">添付ファイル（PDF・Word・Excel・画像／これがFAX原稿になります）</label>
+      <input type="file" id="s-files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.tif,.tiff">
+      <div class="filelist" id="filelist"></div>
+      <div class="hint">添付なしの場合は送付状（件名＋本文）1枚だけが送信されます。合計18MBまで。</div>
+
+      <div style="margin-top:18px" class="row">
+        <button class="btn" id="btn-send">📠 FAXを送信する</button>
+        <button class="btn sub" id="btn-clear">クリア</button>
+        <span class="hsp"></span>
+        <button class="abtn" id="btn-addcontact">＋取引先を登録</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 受信 ============ -->
+  <section id="tab-inbox" class="hidden">
+    <div class="filters" id="inbox-filters"></div>
+    <div id="inbox-list"><div class="empty">読み込み中…</div></div>
+  </section>
+
+  <!-- ============ 履歴 ============ -->
+  <section id="tab-history" class="hidden">
+    <div id="history-list"><div class="empty">読み込み中…</div></div>
+  </section>
+</main>
+
+<!-- 送信確認モーダル -->
+<div class="overlay" id="confirm-ov">
+  <div class="modal">
+    <h3>この内容でFAXを送信しますか？</h3>
+    <div class="kv">
+      <span class="k">宛先</span><span id="cf-vendor"></span>
+      <span class="k">FAX番号</span><span id="cf-num"></span>
+      <span class="k">件名</span><span id="cf-subject"></span>
+      <span class="k">本文</span><span id="cf-body" style="white-space:pre-wrap; max-height:120px; overflow:auto"></span>
+      <span class="k">添付</span><span id="cf-files"></span>
+    </div>
+    <div class="warn">⚠️ 送信後の取り消しはできません。宛先番号をご確認ください。</div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn sub" id="cf-cancel">やめる</button>
+      <button class="btn" id="cf-ok">送信する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 取引先追加モーダル -->
+<div class="overlay" id="contact-ov">
+  <div class="modal">
+    <h3>取引先を登録</h3>
+    <label class="lbl">取引先名</label>
+    <input class="txt" id="nc-name" placeholder="例: 株式会社〇〇">
+    <label class="lbl">FAX番号</label>
+    <input class="txt" id="nc-num" placeholder="例: 053-421-0000" inputmode="tel">
+    <div class="hint">FAX台帳（取引先マスタ）に登録され、受信FAXの自動仕分けにも反映されます。</div>
+    <div class="row" style="justify-content:flex-end; margin-top:16px">
+      <button class="btn sub" id="nc-cancel">やめる</button>
+      <button class="btn" id="nc-ok">登録</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ==== 設定 ==== */
+const API_URL = "https://script.google.com/macros/s/AKfycbxQCf2HVfLjUAzOYXJHzzhquN3zkNrUAgcusg3mH5uhlm-UySsDYXBChhLjZGI2DyecIg/exec";
+const LSK = 'faxdesk_cred';
+
+let CRED = null;
+try { CRED = JSON.parse(localStorage.getItem(LSK) || 'null'); } catch(_){}
+
+let CONTACTS = [];           // {num, num81, name}
+let INBOX = [];              // 受信rows
+let SENT = [];               // 履歴rows
+let selContact = null;       // 選択中取引先
+let attach = [];             // File[]
+let inboxFilter = 'all';
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function toast(msg, ms=2600){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._tm); t._tm=setTimeout(()=>t.classList.remove('show'), ms); }
+
+/* ==== API ==== */
+async function apiGet(action, params={}){
+  const u = new URL(API_URL);
+  u.searchParams.set('action', action);
+  u.searchParams.set('email', CRED.email);
+  u.searchParams.set('pass', CRED.pass);
+  for(const [k,v] of Object.entries(params)) u.searchParams.set(k, v);
+  const res = await fetch(u.toString());
+  return res.json();
+}
+async function apiPost(obj){
+  const res = await fetch(API_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(Object.assign({email:CRED.email, pass:CRED.pass}, obj)) });
+  return res.json();
+}
+
+/* ==== ログイン ==== */
+async function tryLogin(email, pass){
+  CRED = {email, pass};
+  const r = await apiGet('contacts').catch(()=>({ok:false, error:'通信エラー'}));
+  if(r.ok){ localStorage.setItem(LSK, JSON.stringify(CRED)); CONTACTS = r.contacts||[]; return true; }
+  CRED = null; return false;
+}
+$('#g-btn').onclick = async ()=>{
+  const email = $('#g-email').value.trim(), pass = $('#g-pass').value;
+  if(!email || !pass){ $('#g-msg').textContent='メールとパスワードを入力してください'; return; }
+  $('#g-btn').disabled = true; $('#g-msg').textContent='確認中…';
+  const ok = await tryLogin(email, pass);
+  $('#g-btn').disabled = false;
+  if(ok){ $('#gate').classList.add('hidden'); boot(); }
+  else $('#g-msg').textContent='ログインできませんでした（メール／パスワードをご確認ください）';
+};
+$('#g-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#g-btn').click(); });
+$('#btn-logout').onclick = ()=>{ localStorage.removeItem(LSK); location.reload(); };
+
+/* ==== 取引先コンボ ==== */
+function renderComboList(q){
+  const list = $('#c-list');
+  q = (q||'').trim().toLowerCase();
+  const hits = CONTACTS.filter(c => !q || c.name.toLowerCase().includes(q) || c.num.includes(q.replace(/[^\d]/g,'')||' ')).slice(0, 30);
+  if(!hits.length){ list.style.display='none'; return; }
+  list.innerHTML = hits.map((c,i)=>`<div class="combo-item" data-n="${esc(c.num81)}"><span>${esc(c.name)}</span><span class="num">${esc(fmtNum(c.num))}</span></div>`).join('');
+  list.style.display='block';
+  list.querySelectorAll('.combo-item').forEach(el=>{
+    el.onclick = ()=>{ const c = CONTACTS.find(x=>x.num81===el.dataset.n); selectContact(c); };
+  });
+}
+function selectContact(c){
+  selContact = c;
+  $('#c-selected').classList.remove('hidden');
+  $('#c-name').textContent = c.name;
+  $('#c-num').textContent = '｜' + fmtNum(c.num);
+  $('#c-search').value = ''; $('#c-list').style.display='none';
+  $('#s-manual').value = '';
+  updateDestPreview();
+}
+$('#c-clear').onclick = ()=>{ selContact=null; $('#c-selected').classList.add('hidden'); updateDestPreview(); };
+$('#c-search').addEventListener('input', e=>renderComboList(e.target.value));
+$('#c-search').addEventListener('focus', e=>renderComboList(e.target.value));
+document.addEventListener('click', e=>{ if(!$('#combo').contains(e.target)) $('#c-list').style.display='none'; });
+$('#s-manual').addEventListener('input', ()=>{ if($('#s-manual').value.trim() && selContact){ selContact=null; $('#c-selected').classList.add('hidden'); } updateDestPreview(); });
+
+function fmtNum(n){
+  n = String(n||'').replace(/[^\d]/g,'');
+  if(n.startsWith('81')) n = '0'+n.slice(2);
+  return n;
+}
+function destNumber(){
+  if(selContact) return selContact.num;
+  const m = $('#s-manual').value.replace(/[^\d]/g,'');
+  return m || '';
+}
+function to81(n){ n=String(n||'').replace(/[^\d]/g,''); if(!n) return ''; if(n.startsWith('81')&&n.length>=11) return n; if(n.startsWith('0')) return '81'+n.slice(1); return ''; }
+function updateDestPreview(){
+  const n = destNumber(); const el = $('#dest-preview');
+  if(!n){ el.textContent=''; return; }
+  const n81 = to81(n);
+  const name = selContact ? selContact.name : (CONTACTS.find(c=>c.num===fmtNum(n))||{}).name;
+  el.innerHTML = n81
+    ? `送信先: <b>${esc(name?name+'　':'')}${esc(fmtNum(n))}</b> → <span style="font-family:monospace">${esc(n81)}@efaxsend.com</span>`
+    : `<span style="color:var(--red)">⚠ 番号の形式を確認してください（0から始まる番号）</span>`;
+}
+
+/* ==== 添付 ==== */
+$('#s-files').addEventListener('change', e=>{
+  for(const f of e.target.files) attach.push(f);
+  e.target.value = '';
+  renderFiles();
+});
+function renderFiles(){
+  const total = attach.reduce((s,f)=>s+f.size, 0);
+  $('#filelist').innerHTML = attach.map((f,i)=>
+    `<div class="fileitem"><span>📎</span><span class="nm">${esc(f.name)}</span><span class="meta">${(f.size/1024/1024).toFixed(2)}MB</span><span class="rm" data-i="${i}">✕</span></div>`
+  ).join('') + (attach.length?`<div class="hint">合計 ${(total/1024/1024).toFixed(2)}MB / 18MB</div>`:'');
+  document.querySelectorAll('.fileitem .rm').forEach(el=>{ el.onclick=()=>{ attach.splice(Number(el.dataset.i),1); renderFiles(); }; });
+}
+function fileToB64(f){
+  return new Promise((res, rej)=>{
+    const r = new FileReader();
+    r.onload = ()=>res(String(r.result).split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(f);
+  });
+}
+
+/* ==== 送信 ==== */
+$('#btn-send').onclick = ()=>{
+  const n = destNumber();
+  if(!n || !to81(n)){ toast('宛先のFAX番号を指定してください'); return; }
+  if(!$('#s-subject').value.trim()){ toast('件名を入力してください'); return; }
+  const total = attach.reduce((s,f)=>s+f.size,0);
+  if(total > 18*1024*1024){ toast('添付が大きすぎます（合計18MBまで）'); return; }
+  const name = selContact ? selContact.name : ((CONTACTS.find(c=>c.num===fmtNum(n))||{}).name || '');
+  $('#cf-vendor').textContent = name || '（未登録の番号）';
+  $('#cf-num').textContent = fmtNum(n);
+  $('#cf-subject').textContent = $('#s-subject').value.trim();
+  $('#cf-body').textContent = $('#s-body').value.trim() || '（本文なし）';
+  $('#cf-files').textContent = attach.length ? attach.map(f=>f.name).join(' / ') : 'なし（送付状のみ）';
+  $('#confirm-ov').classList.add('show');
+};
+$('#cf-cancel').onclick = ()=>$('#confirm-ov').classList.remove('show');
+$('#cf-ok').onclick = async ()=>{
+  const btn = $('#cf-ok');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>送信中…';
+  try{
+    const files = [];
+    for(const f of attach) files.push({name:f.name, mime:f.type||'application/octet-stream', data:await fileToB64(f)});
+    const n = destNumber();
+    const name = selContact ? selContact.name : '';
+    const r = await apiPost({action:'send', to:n, vendor:name, subject:$('#s-subject').value.trim(), body:$('#s-body').value, files});
+    if(r.ok){
+      $('#confirm-ov').classList.remove('show');
+      toast('📠 FAXを送信しました（結果は送信履歴に反映されます）', 3500);
+      clearForm();
+      switchTab('history');
+      loadSent();
+    } else toast('送信エラー: ' + (r.error||'不明'), 5000);
+  }catch(err){ toast('送信エラー: ' + err, 5000); }
+  btn.disabled = false; btn.textContent = '送信する';
+};
+function clearForm(){
+  selContact = null; $('#c-selected').classList.add('hidden');
+  $('#s-manual').value=''; $('#s-subject').value=''; $('#s-body').value='';
+  attach = []; renderFiles(); updateDestPreview();
+}
+$('#btn-clear').onclick = clearForm;
+
+/* ==== 取引先追加 ==== */
+$('#btn-addcontact').onclick = ()=>$('#contact-ov').classList.add('show');
+$('#nc-cancel').onclick = ()=>$('#contact-ov').classList.remove('show');
+$('#nc-ok').onclick = async ()=>{
+  const name = $('#nc-name').value.trim(), num = $('#nc-num').value.trim();
+  if(!name || !num){ toast('名前と番号を入力してください'); return; }
+  const r = await apiPost({action:'contact', name, num});
+  if(r.ok){
+    toast('登録しました: ' + name);
+    $('#contact-ov').classList.remove('show');
+    $('#nc-name').value=''; $('#nc-num').value='';
+    const c = await apiGet('contacts'); if(c.ok) CONTACTS = c.contacts;
+  } else toast(r.error||'登録できませんでした', 4000);
+};
+
+/* ==== 受信 ==== */
+const INBOX_STATUSES = ['未対応','要返信','返信済','対応済'];
+function pillClass(st){
+  if(st==='未対応') return 'p-red';
+  if(st==='要返信') return 'p-orange';
+  if(st==='返信済') return 'p-blue';
+  if(st==='対応済') return 'p-green';
+  return 'p-gray';
+}
+function renderInboxFilters(){
+  const counts = {all: INBOX.length};
+  INBOX_STATUSES.forEach(s=>counts[s]=INBOX.filter(r=>r.status===s).length);
+  $('#inbox-filters').innerHTML =
+    `<span class="fchip ${inboxFilter==='all'?'on':''}" data-f="all">すべて ${counts.all}</span>` +
+    INBOX_STATUSES.map(s=>`<span class="fchip ${inboxFilter===s?'on':''}" data-f="${s}">${s} ${counts[s]}</span>`).join('');
+  document.querySelectorAll('#inbox-filters .fchip').forEach(el=>{
+    el.onclick = ()=>{ inboxFilter = el.dataset.f; renderInbox(); };
+  });
+  const pending = (counts['未対応']||0) + (counts['要返信']||0);
+  const b = $('#inbox-badge');
+  if(pending>0){ b.textContent = pending; b.style.display='inline-block'; } else b.style.display='none';
+}
+function fmtDate(iso){
+  const d = new Date(iso);
+  if(isNaN(d)) return String(iso||'');
+  const wd = '日月火水木金土'[d.getDay()];
+  return `${d.getMonth()+1}/${d.getDate()}(${wd}) ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function renderInbox(){
+  renderInboxFilters();
+  const rows = INBOX.filter(r=>inboxFilter==='all' || r.status===inboxFilter);
+  if(!rows.length){ $('#inbox-list').innerHTML = '<div class="empty">該当する受信FAXはありません</div>'; return; }
+  $('#inbox-list').innerHTML = rows.map(r=>`
+    <div class="item">
+      <div class="item-top">
+        <span class="pill ${pillClass(r.status)}">${esc(r.status)}</span>
+        <span class="vendor">${esc(r.vendor || '不明_'+r.faxNum)}</span>
+        <span class="meta">${esc(fmtNum(r.faxNum))}｜${fmtDate(r.date)}${r.pages?`｜${r.pages}枚`:''}</span>
+      </div>
+      <div class="item-actions">
+        <button class="abtn primary" data-act="pdf" data-id="${esc(r.msgId)}">📄 FAXを見る</button>
+        <button class="abtn" data-act="reply" data-id="${esc(r.msgId)}">↩️ 返信FAX</button>
+        <select class="abtn" data-act="status" data-id="${esc(r.msgId)}" style="padding:5px 8px">
+          ${INBOX_STATUSES.map(s=>`<option ${s===r.status?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <input class="memoinput" data-act="memo" data-id="${esc(r.msgId)}" placeholder="メモ…" value="${esc(r.memo||'')}">
+      </div>
+    </div>`).join('');
+  bindInboxActions();
+}
+function bindInboxActions(){
+  document.querySelectorAll('#inbox-list [data-act="pdf"]').forEach(el=>{
+    el.onclick = async ()=>{
+      const w = window.open('about:blank');
+      el.disabled = true; el.textContent = '取得中…';
+      try{
+        const r = await apiGet('pdf', {id: el.dataset.id});
+        if(r.ok && r.files.length){
+          const f = r.files[0];
+          const bytes = Uint8Array.from(atob(f.data), c=>c.charCodeAt(0));
+          const url = URL.createObjectURL(new Blob([bytes], {type:'application/pdf'}));
+          w.location = url;
+        } else { w.close(); toast(r.error || 'PDFを取得できませんでした'); }
+      }catch(err){ w.close(); toast('取得エラー: '+err); }
+      el.disabled = false; el.textContent = '📄 FAXを見る';
+    };
+  });
+  document.querySelectorAll('#inbox-list [data-act="reply"]').forEach(el=>{
+    el.onclick = ()=>{
+      const r = INBOX.find(x=>x.msgId===el.dataset.id); if(!r) return;
+      const c = CONTACTS.find(x=>x.num===fmtNum(r.faxNum));
+      if(c) selectContact(c);
+      else { selContact=null; $('#c-selected').classList.add('hidden'); $('#s-manual').value = fmtNum(r.faxNum); }
+      $('#s-subject').value = '【林材木店】' + (r.vendor? '' : '') + 'ご連絡（' + fmtDate(r.date).split(' ')[0] + ' 受信FAXの件）';
+      updateDestPreview();
+      switchTab('send');
+      toast('宛先をセットしました。件名・本文を入力してください');
+      window.scrollTo({top:0, behavior:'smooth'});
+    };
+  });
+  document.querySelectorAll('#inbox-list [data-act="status"]').forEach(el=>{
+    el.onchange = async ()=>{
+      const r = INBOX.find(x=>x.msgId===el.dataset.id); if(!r) return;
+      r.status = el.value;
+      renderInbox();
+      const res = await apiPost({action:'status', msgId: el.dataset.id, status: el.value});
+      if(!res.ok) toast('保存に失敗しました');
+    };
+  });
+  document.querySelectorAll('#inbox-list [data-act="memo"]').forEach(el=>{
+    el.onchange = async ()=>{
+      const r = INBOX.find(x=>x.msgId===el.dataset.id); if(r) r.memo = el.value;
+      const res = await apiPost({action:'status', msgId: el.dataset.id, memo: el.value});
+      if(!res.ok) toast('メモの保存に失敗しました');
+    };
+  });
+}
+
+/* ==== 履歴 ==== */
+function sentPill(st){
+  st = String(st||'');
+  if(st.includes('完了')) return `<span class="pill p-green">${esc(st)}</span>`;
+  if(st.includes('失敗')) return `<span class="pill p-red">${esc(st)}</span>`;
+  if(st.includes('送信中')) return `<span class="pill p-blue">${esc(st)}</span>`;
+  return `<span class="pill p-gray">${esc(st)}</span>`;
+}
+function renderSent(){
+  if(!SENT.length){ $('#history-list').innerHTML = '<div class="empty">送信履歴はまだありません</div>'; return; }
+  $('#history-list').innerHTML = SENT.map(r=>`
+    <div class="item">
+      <div class="item-top">
+        ${sentPill(r.status)}
+        <span class="vendor">${esc(r.vendor || fmtNum(r.faxNum))}</span>
+        <span class="meta">${esc(fmtNum(r.faxNum))}｜${fmtDate(r.date)}</span>
+      </div>
+      ${r.subject?`<div class="item-sub">件名: ${esc(r.subject)}</div>`:''}
+      ${r.files?`<div class="meta" style="margin-top:2px">📎 ${esc(r.files)}</div>`:''}
+      ${r.note?`<div class="meta" style="margin-top:2px">${esc(r.note)}</div>`:''}
+      <div class="item-actions">
+        <button class="abtn" data-act="reuse" data-id="${esc(r.id)}">↪️ 同じ宛先にもう一度</button>
+      </div>
+    </div>`).join('');
+  document.querySelectorAll('#history-list [data-act="reuse"]').forEach(el=>{
+    el.onclick = ()=>{
+      const r = SENT.find(x=>String(x.id)===el.dataset.id); if(!r) return;
+      const c = CONTACTS.find(x=>x.num===fmtNum(r.faxNum));
+      if(c) selectContact(c); else { selContact=null; $('#c-selected').classList.add('hidden'); $('#s-manual').value = fmtNum(r.faxNum); }
+      $('#s-subject').value = r.subject||'';
+      $('#s-body').value = r.body||'';
+      updateDestPreview();
+      switchTab('send');
+      toast('内容をセットしました（添付は付け直してください）');
+      window.scrollTo({top:0, behavior:'smooth'});
+    };
+  });
+}
+
+/* ==== タブ・読み込み ==== */
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on', t.dataset.tab===name));
+  ['send','inbox','history'].forEach(n=>$('#tab-'+n).classList.toggle('hidden', n!==name));
+  if(name==='inbox' && !INBOX._loaded) loadInbox();
+  if(name==='history' && !SENT._loaded) loadSent();
+}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
+
+async function loadInbox(){
+  try{
+    const r = await apiGet('inbox');
+    if(r.ok){ INBOX = r.rows; INBOX._loaded = true; renderInbox(); }
+    else toast('受信の取得に失敗: ' + (r.error||''));
+  }catch(err){ toast('通信エラー（受信）'); }
+}
+async function loadSent(){
+  try{
+    const r = await apiGet('sent');
+    if(r.ok){ SENT = r.rows; SENT._loaded = true; renderSent(); }
+    else toast('履歴の取得に失敗: ' + (r.error||''));
+  }catch(err){ toast('通信エラー（履歴）'); }
+}
+$('#btn-refresh').onclick = ()=>{ toast('最新を取得中…'); loadInbox(); loadSent(); };
+
+async function boot(){
+  if(!CONTACTS.length){ const c = await apiGet('contacts').catch(()=>null); if(c && c.ok) CONTACTS = c.contacts; }
+  loadInbox();
+  loadSent();
+  if(!window._auto){
+    window._auto = setInterval(()=>{ if(!document.hidden){ loadInbox(); loadSent(); } }, 180000);
+    document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ loadInbox(); loadSent(); } });
+  }
+}
+
+/* ==== 起動 ==== */
+(async function(){
+  if(CRED && CRED.email){
+    $('#gate').classList.add('hidden');
+    const ok = await tryLogin(CRED.email, CRED.pass);
+    if(ok) boot();
+    else { localStorage.removeItem(LSK); $('#gate').classList.remove('hidden'); }
+  }
+})();
+</script>
+</body>
+</html>
