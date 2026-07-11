@@ -573,6 +573,7 @@ function renderViewerFoot(){
       item.status = e.target.value; renderInbox();
       const r = await apiPost({action:'status', msgId:item.msgId, status:item.status});
       if(!r.ok) toast('保存に失敗しました');
+      else if(r.filed && r.filed.moved && r.filed.moved.length) toast('📁 ' + [...new Set(r.filed.moved.map(m=>m.dest))].join('・') + ' へ移動しました', 3500);
     };
     $('#vf-memo').onchange = async e=>{
       item.memo = e.target.value;
@@ -905,6 +906,7 @@ function renderInbox(){
       r.status = el.value; renderInbox();
       const res = await apiPost({action:'status', msgId: el.dataset.id, status: el.value});
       if(!res.ok) toast('保存に失敗しました');
+      else if(res.filed && res.filed.moved && res.filed.moved.length) toast('📁 ' + [...new Set(res.filed.moved.map(m=>m.dest))].join('・') + ' へ移動しました', 3500);
     };
   });
   document.querySelectorAll('#inbox-list [data-act="reply"]').forEach(el=>{
