@@ -193,7 +193,7 @@ textarea{resize:vertical; min-height:130px}
   <section id="tab-send">
     <div class="seg">
       <div class="on" data-mode="single">✉️ 1件ずつ送る</div>
-      <div data-mode="bulk">📢 一括送信（ジャンル）</div>
+      <div data-mode="bulk">📢 まとめて送信</div>
     </div>
 
     <div class="card">
@@ -216,7 +216,7 @@ textarea{resize:vertical; min-height:130px}
       <div id="dest-bulk" class="hidden">
         <div class="row" style="justify-content:space-between">
           <label class="lbl" style="margin:0">ジャンルを選ぶ → 宛先を確認</label>
-          <button class="abtn" id="btn-genre-mng">🏷️ ジャンル管理</button>
+          <button class="abtn" id="btn-genre-mng">👥 取引先管理</button>
         </div>
         <div class="gchips" id="genre-chips" style="margin-top:8px"></div>
         <div class="row" style="margin-top:10px; justify-content:space-between">
@@ -307,13 +307,15 @@ textarea{resize:vertical; min-height:130px}
   </div>
 </div>
 
-<!-- ジャンル管理モーダル -->
+<!-- 取引先管理モーダル -->
 <div class="overlay" id="genre-ov">
-  <div class="modal" style="max-width:560px">
-    <h3>🏷️ 取引先のジャンル管理</h3>
+  <div class="modal" style="max-width:620px">
+    <h3>👥 取引先管理</h3>
     <input class="txt" id="gm-search" placeholder="取引先名で絞り込み…">
     <div class="glist" id="gm-list"></div>
-    <div class="row" style="justify-content:flex-end; margin-top:14px">
+    <div class="hint" style="margin-top:6px">✏️=名前変更／🗑=削除（削除すると受信FAXの取引先名の自動判定からも消えます）</div>
+    <div class="row" style="justify-content:space-between; margin-top:14px">
+      <button class="abtn" id="gm-add">＋新規登録</button>
       <button class="btn sub" id="gm-close">閉じる</button>
     </div>
   </div>
@@ -703,17 +705,19 @@ $('#gm-close').onclick = ()=>{ $('#genre-ov').classList.remove('show'); renderGe
 $('#gm-search').addEventListener('input', e=>renderGenreList(e.target.value));
 function renderGenreList(q){
   q = (q||'').trim().toLowerCase();
-  const rows = CONTACTS.filter(c=>!q || c.name.toLowerCase().includes(q));
+  const rows = CONTACTS.filter(c=>!q || c.name.toLowerCase().includes(q) || c.num.includes(q.replace(/[^\d]/g,'')||' '));
   $('#gm-list').innerHTML = rows.map(c=>`
     <div class="grow">
       <span class="nm">${esc(c.name)}</span><span class="num">${esc(c.num)}</span>
-      <select data-n="${esc(c.num81)}">
+      <select data-act="genre" data-n="${esc(c.num81)}">
         <option value="">未設定</option>
         ${GENRES.map(g=>`<option ${c.genre===g?'selected':''}>${g}</option>`).join('')}
         ${c.genre && !GENRES.includes(c.genre) ? `<option selected>${esc(c.genre)}</option>` : ''}
       </select>
+      <button class="abtn" data-act="edit" data-n="${esc(c.num81)}" title="名前を変更">✏️</button>
+      <button class="abtn" data-act="del" data-n="${esc(c.num81)}" title="削除" style="color:var(--red)">🗑</button>
     </div>`).join('') || '<div class="empty">該当なし</div>';
-  $('#gm-list').querySelectorAll('select').forEach(el=>{
+  $('#gm-list').querySelectorAll('[data-act="genre"]').forEach(el=>{
     el.onchange = async ()=>{
       const c = CONTACTS.find(x=>x.num81===el.dataset.n); if(!c) return;
       const old = c.genre; c.genre = el.value;
@@ -722,7 +726,30 @@ function renderGenreList(q){
       else { c.genre = old; toast('保存に失敗しました'); renderGenreList(q); }
     };
   });
+  $('#gm-list').querySelectorAll('[data-act="edit"]').forEach(el=>{
+    el.onclick = async ()=>{
+      const c = CONTACTS.find(x=>x.num81===el.dataset.n); if(!c) return;
+      const name = prompt('新しい取引先名を入力してください', c.name);
+      if(name==null || !name.trim() || name.trim()===c.name) return;
+      const r = await apiPost({action:'editcontact', num:c.num81, name:name.trim()});
+      if(r.ok){ c.name = name.trim(); toast('名前を変更しました'); renderGenreList(q); }
+      else toast(r.error||'変更に失敗しました');
+    };
+  });
+  $('#gm-list').querySelectorAll('[data-act="del"]').forEach(el=>{
+    el.onclick = async ()=>{
+      const c = CONTACTS.find(x=>x.num81===el.dataset.n); if(!c) return;
+      if(!confirm(`「${c.name}」（${c.num}）を削除しますか？\n\n・まとめて送信の宛先から消えます\n・受信FAXの取引先名の自動判定からも消えます`)) return;
+      const r = await apiPost({action:'delcontact', num:c.num81});
+      if(r.ok){ CONTACTS = CONTACTS.filter(x=>x.num81!==c.num81); toast('削除しました: '+c.name); renderGenreList(q); }
+      else toast(r.error||'削除に失敗しました');
+    };
+  });
 }
+$('#gm-add').onclick = ()=>{
+  $('#nc-genre').innerHTML = `<option value="">未設定</option>` + GENRES.map(g=>`<option>${g}</option>`).join('');
+  $('#contact-ov').classList.add('show');
+};
 
 /* ==== 添付 ==== */
 $('#s-files').addEventListener('change', e=>{
@@ -845,6 +872,8 @@ $('#nc-ok').onclick = async ()=>{
     $('#contact-ov').classList.remove('show');
     $('#nc-name').value=''; $('#nc-num').value='';
     const c = await apiGet('contacts'); if(c.ok) CONTACTS = c.contacts;
+    if($('#genre-ov').classList.contains('show')) renderGenreList($('#gm-search').value);
+    if(sendMode==='bulk') renderGenreChips();
   } else toast(r.error||'登録できませんでした', 4000);
 };
 
