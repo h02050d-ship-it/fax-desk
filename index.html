@@ -337,7 +337,7 @@ let INBOX = [];
 let SENT = [];
 let selContact = null;
 let attach = [];
-let inboxFilter = 'all';
+let inboxFilter = '未対応';
 let sendMode = 'single';
 let bulkGenre = '';
 let bulkChecked = new Set();   // num81
@@ -397,9 +397,33 @@ function fmtDate(iso){
 function vendorOf(num){ const c = CONTACTS.find(x=>x.num===fmtNum(num)); return c ? c.name : ''; }
 
 /* ==== PDFサムネイル・キャッシュ ==== */
-const pdfCache = new Map();        // id -> files[]
+const pdfCache = new Map();        // id -> files[]（セッション内）
 const thumbQueue = [];
 let thumbRunning = 0;
+
+/* サムネイルの端末永続キャッシュ（IndexedDB）— 2回目以降は瞬時に表示 */
+let IDB = null;
+(function(){
+  try{
+    const q = indexedDB.open('faxdesk', 1);
+    q.onupgradeneeded = ()=>q.result.createObjectStore('thumbs');
+    q.onsuccess = ()=>{ IDB = q.result; };
+  }catch(_){}
+})();
+function thumbGet(id){
+  return new Promise(res=>{
+    if(!IDB) return res(null);
+    try{
+      const t = IDB.transaction('thumbs').objectStore('thumbs').get(id);
+      t.onsuccess = ()=>res(t.result || null);
+      t.onerror = ()=>res(null);
+    }catch(_){ res(null); }
+  });
+}
+function thumbSet(id, dataUrl){
+  if(!IDB) return;
+  try{ IDB.transaction('thumbs','readwrite').objectStore('thumbs').put(dataUrl, id); }catch(_){}
+}
 async function getFaxFiles(id){
   if(pdfCache.has(id)) return pdfCache.get(id);
   const r = await apiGet('pdf', {id});
@@ -423,28 +447,40 @@ function queueThumb(id, holder, overlays){
   pumpThumbs();
 }
 async function pumpThumbs(){
-  while(thumbRunning < 3 && thumbQueue.length){
+  while(thumbRunning < 5 && thumbQueue.length){
     const job = thumbQueue.shift();
     if(!document.body.contains(job.holder)) continue;
     thumbRunning++;
     (async ()=>{
       try{
+        // 端末キャッシュにあれば即表示（通信なし）
+        const cached = await thumbGet(job.id);
+        if(cached){
+          if(!document.body.contains(job.holder)) return;
+          job.holder.innerHTML = '';
+          const img = document.createElement('img');
+          img.src = cached;
+          job.holder.appendChild(img);
+          (job.overlays||[]).forEach(o=>job.holder.appendChild(o));
+          return;
+        }
         const files = await getFaxFiles(job.id);
         if(!document.body.contains(job.holder)) return;
         const f = files[0];
         job.holder.innerHTML = '';
         if(/^image\//.test(f.mime)){
           const img = document.createElement('img');
-          img.src = `data:${f.mime};base64,${f.data}`;
+          const du = `data:${f.mime};base64,${f.data}`;
+          img.src = du;
           job.holder.appendChild(img);
+          if(du.length < 400000) thumbSet(job.id, du);
         } else {
           const cv = document.createElement('canvas');
           job.holder.appendChild(cv);
           await renderPdfPage(b64ToBytes(f.data), cv, 420);
+          try{ thumbSet(job.id, cv.toDataURL('image/jpeg', 0.72)); }catch(_){}
         }
-        // オーバーレイ（ピル・枚数）を戻す
-        const overlays = job.overlays || [];
-        overlays.forEach(o=>job.holder.appendChild(o));
+        (job.overlays||[]).forEach(o=>job.holder.appendChild(o));
       }catch(err){
         job.holder.innerHTML = `<div class="ph"><span class="big">📄</span><span>プレビュー取得不可</span></div>`;
         (job.overlays||[]).forEach(o=>job.holder.appendChild(o));
@@ -823,8 +859,8 @@ function renderInboxFilters(){
   const counts = {all: INBOX.length};
   INBOX_STATUSES.forEach(s=>counts[s]=INBOX.filter(r=>r.status===s).length);
   $('#inbox-filters').innerHTML =
-    `<span class="fchip ${inboxFilter==='all'?'on':''}" data-f="all">すべて ${counts.all}</span>` +
-    INBOX_STATUSES.map(s=>`<span class="fchip ${inboxFilter===s?'on':''}" data-f="${s}">${s} ${counts[s]}</span>`).join('');
+    INBOX_STATUSES.map(s=>`<span class="fchip ${inboxFilter===s?'on':''}" data-f="${s}">${s} ${counts[s]}</span>`).join('') +
+    `<span class="fchip ${inboxFilter==='all'?'on':''}" data-f="all">すべて ${counts.all}</span>`;
   document.querySelectorAll('#inbox-filters .fchip').forEach(el=>{
     el.onclick = ()=>{ inboxFilter = el.dataset.f; renderInbox(); };
   });
@@ -918,20 +954,35 @@ document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>switchTab(t.dataset.t
 async function loadInbox(){
   try{
     const r = await apiGet('inbox');
-    if(r.ok){ INBOX = r.rows; INBOX._loaded = true; if(!$('#tab-inbox').classList.contains('hidden')) renderInbox(); else renderInboxFilters(); }
+    if(r.ok){
+      INBOX = r.rows; INBOX._loaded = true;
+      try{ localStorage.setItem('fd_inbox', JSON.stringify(r.rows.slice(0,120))); }catch(_){}
+      if(!$('#tab-inbox').classList.contains('hidden')) renderInbox(); else renderInboxFilters();
+    }
     else toast('受信の取得に失敗: ' + (r.error||''));
   }catch(err){ toast('通信エラー（受信）'); }
 }
 async function loadSent(){
   try{
     const r = await apiGet('sent');
-    if(r.ok){ SENT = r.rows; SENT._loaded = true; if(!$('#tab-history').classList.contains('hidden')) renderSent(); }
+    if(r.ok){
+      SENT = r.rows; SENT._loaded = true;
+      try{ localStorage.setItem('fd_sent', JSON.stringify(r.rows.slice(0,120))); }catch(_){}
+      if(!$('#tab-history').classList.contains('hidden')) renderSent();
+    }
     else toast('履歴の取得に失敗: ' + (r.error||''));
   }catch(err){ toast('通信エラー（履歴）'); }
 }
 $('#btn-refresh').onclick = ()=>{ toast('最新を取得中…'); loadInbox(); loadSent(); };
 
 async function boot(){
+  // 前回取得分を即表示（裏で最新を取得して置き換え）
+  try{
+    const ci = JSON.parse(localStorage.getItem('fd_inbox')||'null');
+    if(ci && ci.length){ INBOX = ci; INBOX._loaded = true; renderInboxFilters(); }
+    const cs = JSON.parse(localStorage.getItem('fd_sent')||'null');
+    if(cs && cs.length){ SENT = cs; SENT._loaded = true; }
+  }catch(_){}
   if(!CONTACTS.length){ const c = await apiGet('contacts').catch(()=>null); if(c && c.ok) CONTACTS = c.contacts; }
   loadInbox();
   loadSent();
