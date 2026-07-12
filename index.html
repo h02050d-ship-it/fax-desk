@@ -33,6 +33,12 @@ main{max-width:1080px; margin:0 auto; padding:14px 16px 90px}
   border-radius:999px; min-width:18px; padding:1px 5px; display:none}
 .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:12px}
 .lbl{display:block; font-size:13px; font-weight:700; color:var(--sub); margin:12px 0 4px}
+.cover{background:#fff; border:1.5px solid #444; border-radius:4px; padding:16px 18px; font-size:13.5px; line-height:1.7; box-shadow:0 1px 5px rgba(0,0,0,.10)}
+.cv-to{font-weight:700; margin-bottom:8px}
+.cv-subject{text-align:center; font-size:16px; font-weight:800; border-bottom:2px solid #444; padding-bottom:6px; margin-bottom:10px}
+.cv-subject.empty, .cv-body.empty{color:#9aa7b5; font-weight:400}
+.cv-body{white-space:pre-wrap; min-height:44px; word-break:break-word}
+.cv-sig{margin-top:14px; padding-top:8px; border-top:1px dashed #999; font-size:12.5px; line-height:1.6; text-align:right; white-space:pre-wrap; color:#333}
 .lbl:first-child{margin-top:0}
 .txt, textarea, select{width:100%; border:1px solid var(--line); border-radius:8px; padding:10px 12px;
   font-size:15px; font-family:inherit; background:#fff; color:var(--ink)}
@@ -233,6 +239,15 @@ textarea{resize:vertical; min-height:130px}
       <input class="txt" id="s-subject" placeholder="例:【林材木店】お見積りの件">
       <label class="lbl">本文（送付状に印字されます）</label>
       <textarea id="s-body" placeholder="いつもお世話になっております。&#10;株式会社林材木店です。&#10;&#10;（ここに書いた文章がFAX1枚目の送付状になります）"></textarea>
+
+      <label class="lbl">📄 送付状プレビュー（FAX1枚目のイメージ）</label>
+      <div class="cover">
+        <div class="cv-to" id="cv-to">宛先：（未設定）</div>
+        <div class="cv-subject" id="cv-subject"></div>
+        <div class="cv-body" id="cv-body"></div>
+        <div class="cv-sig" id="cv-sig"></div>
+      </div>
+      <div class="hint">会社情報（社名・住所・TEL/FAX・メール・HP）は送付状の末尾に自動で入ります。</div>
 
       <label class="lbl">添付ファイル（PDF・Word・Excel・画像／これがFAX原稿になります）</label>
       <input type="file" id="s-files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.tif,.tiff">
@@ -620,6 +635,7 @@ document.querySelectorAll('.seg div').forEach(el=>{
     $('#dest-single').classList.toggle('hidden', sendMode!=='single');
     $('#dest-bulk').classList.toggle('hidden', sendMode!=='bulk');
     if(sendMode==='bulk') renderGenreChips();
+    renderCover();
   };
 });
 
@@ -662,7 +678,47 @@ function updateDestPreview(){
   el.innerHTML = n81
     ? `送信先: <b>${esc(name?name+'　':'')}${esc(fmtNum(n))}</b> → <span style="font-family:monospace">${esc(n81)}@efaxsend.com</span>`
     : `<span style="color:var(--red)">⚠ 番号の形式を確認してください（0から始まる番号）</span>`;
+  renderCover();
 }
+
+/* ==== 送付状プレビュー（会社情報を末尾に自動付与） ==== */
+const COMPANY_SIG = [
+  '株式会社林材木店',
+  '〒437-1203 静岡県磐田市福田5490-47',
+  'TEL 0538-58-2395 ／ FAX 050-3146-7566',
+  'Email info@hayazai.com',
+  'HP https://hayazai.com'
+].join('\n');
+function stripSig(t){
+  return String(t||'').replace(/\n*─+\n株式会社林材木店[\s\S]*$/,'').trim();
+}
+function bodyWithSig(){
+  const b = stripSig($('#s-body').value);
+  return (b ? b + '\n\n' : '') + '────────────────\n' + COMPANY_SIG;
+}
+function renderCover(){
+  let to = '宛先：（未設定）';
+  if(sendMode==='single'){
+    const n = destNumber();
+    if(n){
+      const name = selContact ? selContact.name : vendorOf(n);
+      to = `宛先：${name ? name + ' 御中　' : ''}FAX ${fmtNum(n)}`;
+    }
+  } else {
+    to = `宛先：${bulkChecked.size}件（まとめて送信）`;
+  }
+  $('#cv-to').textContent = to;
+  const sub = $('#s-subject').value.trim();
+  $('#cv-subject').textContent = sub || '（件名がタイトルになります）';
+  $('#cv-subject').classList.toggle('empty', !sub);
+  const body = $('#s-body').value.trim();
+  $('#cv-body').textContent = body || '（本文がここに印字されます）';
+  $('#cv-body').classList.toggle('empty', !body);
+  $('#cv-sig').textContent = COMPANY_SIG;
+}
+$('#s-subject').addEventListener('input', renderCover);
+$('#s-body').addEventListener('input', renderCover);
+renderCover();
 
 /* ==== 一括送信 ==== */
 function genreCounts(){
@@ -695,7 +751,7 @@ function renderTargets(){
   });
   updateBulkCount();
 }
-function updateBulkCount(){ $('#bulk-count').textContent = `宛先 ${bulkChecked.size}件`; }
+function updateBulkCount(){ $('#bulk-count').textContent = `宛先 ${bulkChecked.size}件`; renderCover(); }
 $('#bulk-all').onclick = ()=>{ if(!bulkGenre) return; bulkChecked = new Set(CONTACTS.filter(c=>(c.genre||'未設定')===bulkGenre).map(c=>c.num81)); renderTargets(); };
 $('#bulk-none').onclick = ()=>{ bulkChecked.clear(); renderTargets(); };
 
@@ -792,7 +848,7 @@ $('#btn-send').onclick = ()=>{
     $('#cf-vendor').innerHTML = targets.map(c=>`・${esc(c.name)}（${esc(c.num)}）`).join('<br>');
   }
   $('#cf-subject').textContent = $('#s-subject').value.trim();
-  $('#cf-body').textContent = $('#s-body').value.trim() || '（本文なし）';
+  $('#cf-body').textContent = bodyWithSig();
   $('#cf-files').textContent = attach.length ? attach.map(f=>f.name).join(' / ') : 'なし（送付状のみ）';
   $('#confirm-ov').classList.add('show');
 };
@@ -806,10 +862,10 @@ $('#cf-ok').onclick = async ()=>{
     let r;
     if(sendMode==='single'){
       const n = destNumber();
-      r = await apiPost({action:'send', to:n, vendor:selContact?selContact.name:'', subject:$('#s-subject').value.trim(), body:$('#s-body').value, files});
+      r = await apiPost({action:'send', to:n, vendor:selContact?selContact.name:'', subject:$('#s-subject').value.trim(), body:bodyWithSig(), files});
     } else {
       const targets = CONTACTS.filter(c=>bulkChecked.has(c.num81)).map(c=>({num:c.num81, name:c.name}));
-      r = await apiPost({action:'sendbulk', targets, subject:$('#s-subject').value.trim(), body:$('#s-body').value, files});
+      r = await apiPost({action:'sendbulk', targets, subject:$('#s-subject').value.trim(), body:bodyWithSig(), files});
     }
     if(r.ok){
       $('#confirm-ov').classList.remove('show');
@@ -850,7 +906,7 @@ function reuseSent(item){
   const c = CONTACTS.find(x=>x.num===fmtNum(item.faxNum));
   if(c) selectContact(c); else { selContact=null; $('#c-selected').classList.add('hidden'); $('#s-manual').value = fmtNum(item.faxNum); }
   $('#s-subject').value = item.subject||'';
-  $('#s-body').value = item.body||'';
+  $('#s-body').value = stripSig(item.body||'');
   updateDestPreview();
   switchTab('send');
   toast('内容をセットしました（添付は付け直してください）');
