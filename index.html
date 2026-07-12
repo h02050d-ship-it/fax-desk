@@ -184,13 +184,13 @@ textarea{resize:vertical; min-height:130px}
 
 <main>
   <div class="tabs">
-    <div class="tab on" data-tab="send">📤 送信</div>
-    <div class="tab" data-tab="inbox">📥 受信FAX<span class="badge" id="inbox-badge"></span></div>
+    <div class="tab on" data-tab="inbox">📥 受信FAX<span class="badge" id="inbox-badge"></span></div>
+    <div class="tab" data-tab="send">📤 送信</div>
     <div class="tab" data-tab="history">📜 送信履歴</div>
   </div>
 
   <!-- ============ 送信 ============ -->
-  <section id="tab-send">
+  <section id="tab-send" class="hidden">
     <div class="seg">
       <div class="on" data-mode="single">✉️ 1件ずつ送る</div>
       <div data-mode="bulk">📢 まとめて送信</div>
@@ -249,7 +249,7 @@ textarea{resize:vertical; min-height:130px}
   </section>
 
   <!-- ============ 受信 ============ -->
-  <section id="tab-inbox" class="hidden">
+  <section id="tab-inbox">
     <div class="filters" id="inbox-filters"></div>
     <div id="inbox-list"><div class="empty">読み込み中…</div></div>
   </section>
@@ -1011,7 +1011,7 @@ async function boot(){
   // 前回取得分を即表示（裏で最新を取得して置き換え）
   try{
     const ci = JSON.parse(localStorage.getItem('fd_inbox')||'null');
-    if(ci && ci.length){ INBOX = ci; INBOX._loaded = true; renderInboxFilters(); }
+    if(ci && ci.length){ INBOX = ci; INBOX._loaded = true; renderInbox(); }
     const cs = JSON.parse(localStorage.getItem('fd_sent')||'null');
     if(cs && cs.length){ SENT = cs; SENT._loaded = true; }
   }catch(_){}
