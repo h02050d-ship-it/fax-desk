@@ -33,15 +33,24 @@ main{max-width:1080px; margin:0 auto; padding:14px 16px 90px}
   border-radius:999px; min-width:18px; padding:1px 5px; display:none}
 .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:12px}
 .lbl{display:block; font-size:13px; font-weight:700; color:var(--sub); margin:12px 0 4px}
-/* A4縦（210:297）の紙イメージ */
-.cover{background:#fff; border:1.5px solid #444; border-radius:2px; padding:7% 8%; font-size:13.5px; line-height:1.7;
+/* A4縦（210:297）の紙イメージ — 実際に生成される送付状PDFと同じレイアウト */
+.cover{background:#fff; border:1.5px solid #444; border-radius:2px; padding:6.5% 7.5%; font-size:13px; line-height:1.75;
   box-shadow:0 2px 10px rgba(0,0,0,.14); aspect-ratio:210/297; max-width:520px; margin:0 auto;
-  display:flex; flex-direction:column; overflow:hidden}
-.cv-to{font-weight:700; margin-bottom:8px}
-.cv-subject{text-align:center; font-size:16px; font-weight:800; border-bottom:2px solid #444; padding-bottom:6px; margin-bottom:10px}
+  display:flex; flex-direction:column; overflow:hidden; color:#1a1a1a}
+.cv-date{text-align:right; font-size:11px; color:#444}
+.cv-title{text-align:center; font-size:19px; font-weight:800; letter-spacing:12px; padding-left:12px; margin:2px 0}
+.cv-rule{border-bottom:3px double #333; margin-bottom:14px}
+.cv-head{display:flex; justify-content:space-between; align-items:flex-end; gap:12px; margin-bottom:12px}
+.cv-to{font-size:15px; font-weight:800; border-bottom:1.5px solid #333; padding-bottom:4px; flex:1; min-width:0}
+.cv-tofax{font-size:11px; font-weight:400; color:#444}
+.cv-from{text-align:right; font-size:10px; color:#444; line-height:1.6; flex-shrink:0}
+.cv-from b{font-size:12px; color:#1a1a1a}
+.cv-subject{border:1.5px solid #333; background:#f2f5f8; padding:6px 12px; font-weight:800; margin-bottom:4px}
 .cv-subject.empty, .cv-body.empty{color:#9aa7b5; font-weight:400}
+.cv-count{text-align:right; font-size:11px; color:#666; margin-bottom:8px; min-height:15px}
 .cv-body{white-space:pre-wrap; word-break:break-word; flex:1; min-height:0; overflow:hidden}
-.cv-sig{margin-top:auto; padding-top:8px; border-top:1px dashed #999; font-size:12.5px; line-height:1.6; text-align:right; white-space:pre-wrap; color:#333; flex-shrink:0}
+.cover.nocover > *{display:none}
+.cover.nocover::after{content:'送付状なし（添付原稿のみ送信されます）'; margin:auto; color:#9aa7b5; font-weight:700}
 .lbl:first-child{margin-top:0}
 .txt, textarea, select{width:100%; border:1px solid var(--line); border-radius:8px; padding:10px 12px;
   font-size:15px; font-family:inherit; background:#fff; color:var(--ink)}
@@ -243,14 +252,20 @@ textarea{resize:vertical; min-height:130px}
       <label class="lbl">本文（送付状に印字されます）</label>
       <textarea id="s-body" placeholder="いつもお世話になっております。&#10;株式会社林材木店です。&#10;&#10;（ここに書いた文章がFAX1枚目の送付状になります）"></textarea>
 
-      <label class="lbl">📄 送付状プレビュー（FAX1枚目のイメージ）</label>
-      <div class="cover">
-        <div class="cv-to" id="cv-to">宛先：（未設定）</div>
+      <label class="lbl">📄 送付状プレビュー（この内容のPDFがFAX1枚目になります）</label>
+      <div class="cover" id="cover">
+        <div class="cv-date" id="cv-date"></div>
+        <div class="cv-title">ＦＡＸ送付状</div>
+        <div class="cv-rule"></div>
+        <div class="cv-head">
+          <div class="cv-to"><span id="cv-to">（宛先未設定）</span><br><span class="cv-tofax" id="cv-tofax"></span></div>
+          <div class="cv-from"><b>株式会社林材木店</b><br>〒437-1203 静岡県磐田市福田5490-47<br>TEL 0538-58-2395　FAX 050-3146-7566<br>Email info@hayazai.com　HP hayazai.com</div>
+        </div>
         <div class="cv-subject" id="cv-subject"></div>
+        <div class="cv-count" id="cv-count"></div>
         <div class="cv-body" id="cv-body"></div>
-        <div class="cv-sig" id="cv-sig"></div>
       </div>
-      <div class="hint">会社情報（社名・住所・TEL/FAX・メール・HP）は送付状の末尾に自動で入ります。</div>
+      <div class="hint">件名・本文が両方空のときは送付状なしで、添付原稿だけが送信されます。</div>
 
       <label class="lbl">添付ファイル（PDF・Word・Excel・画像／これがFAX原稿になります）</label>
       <input type="file" id="s-files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.tif,.tiff">
@@ -684,40 +699,38 @@ function updateDestPreview(){
   renderCover();
 }
 
-/* ==== 送付状プレビュー（会社情報を末尾に自動付与） ==== */
-const COMPANY_SIG = [
-  '株式会社林材木店',
-  '〒437-1203 静岡県磐田市福田5490-47',
-  'TEL 0538-58-2395 ／ FAX 050-3146-7566',
-  'Email info@hayazai.com',
-  'HP https://hayazai.com'
-].join('\n');
+/* ==== 送付状プレビュー（送信時にGASが同レイアウトのPDFを生成して1枚目に添付） ==== */
 function stripSig(t){
   return String(t||'').replace(/\n*─+\n株式会社林材木店[\s\S]*$/,'').trim();
 }
-function bodyWithSig(){
-  const b = stripSig($('#s-body').value);
-  return (b ? b + '\n\n' : '') + '────────────────\n' + COMPANY_SIG;
-}
 function renderCover(){
-  let to = '宛先：（未設定）';
-  if(sendMode==='single'){
+  const sub = $('#s-subject').value.trim();
+  const body = stripSig($('#s-body').value);
+  $('#cover').classList.toggle('nocover', !sub && !body);
+
+  const d = new Date();
+  $('#cv-date').textContent = `送信日：${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+
+  let to = '（宛先未設定）', fax = '';
+  if(sendMode==='bulk'){
+    to = bulkChecked.size ? `${bulkGenre||''}の取引先 ${bulkChecked.size}件` : '（宛先未選択）';
+    fax = bulkChecked.size ? '※宛先ごとに宛名入りで個別作成されます' : '';
+  } else {
     const n = destNumber();
     if(n){
       const name = selContact ? selContact.name : vendorOf(n);
-      to = `宛先：${name ? name + ' 御中　' : ''}FAX ${fmtNum(n)}`;
+      to = name ? `${name}　御中` : `FAX ${fmtNum(n)} 宛`;
+      fax = `FAX：${fmtNum(n)}`;
     }
-  } else {
-    to = `宛先：${bulkChecked.size}件（まとめて送信）`;
   }
   $('#cv-to').textContent = to;
-  const sub = $('#s-subject').value.trim();
-  $('#cv-subject').textContent = sub || '（件名がタイトルになります）';
+  $('#cv-tofax').textContent = fax;
+
+  $('#cv-subject').textContent = sub ? `件名：${sub}` : '件名：（未入力）';
   $('#cv-subject').classList.toggle('empty', !sub);
-  const body = $('#s-body').value.trim();
+  $('#cv-count').textContent = attach.length ? `本状のほか送信原稿 ${attach.length} 件` : '';
   $('#cv-body').textContent = body || '（本文がここに印字されます）';
   $('#cv-body').classList.toggle('empty', !body);
-  $('#cv-sig').textContent = COMPANY_SIG;
 }
 $('#s-subject').addEventListener('input', renderCover);
 $('#s-body').addEventListener('input', renderCover);
@@ -817,6 +830,7 @@ $('#s-files').addEventListener('change', e=>{
   renderFiles();
 });
 function renderFiles(){
+  renderCover();
   const total = attach.reduce((s,f)=>s+f.size, 0);
   $('#filelist').innerHTML = attach.map((f,i)=>
     `<div class="fileitem"><span>📎</span><span class="nm">${esc(f.name)}</span><span class="gmeta">${(f.size/1024/1024).toFixed(2)}MB</span><span class="rm" data-i="${i}">✕</span></div>`
@@ -834,7 +848,7 @@ function fileToB64(f){
 
 /* ==== 送信 ==== */
 $('#btn-send').onclick = ()=>{
-  if(!$('#s-subject').value.trim() && !attach.length){ toast('件名を入力するか、ファイルを添付してください'); return; }
+  if(!$('#s-subject').value.trim() && !stripSig($('#s-body').value) && !attach.length){ toast('件名・本文・添付のいずれかを入力してください'); return; }
   const total = attach.reduce((s,f)=>s+f.size,0);
   if(total > 18*1024*1024){ toast('添付が大きすぎます（合計18MBまで）'); return; }
 
@@ -850,9 +864,10 @@ $('#btn-send').onclick = ()=>{
     $('#cf-title').textContent = `📢 ${targets.length}件に一括送信しますか？`;
     $('#cf-vendor').innerHTML = targets.map(c=>`・${esc(c.name)}（${esc(c.num)}）`).join('<br>');
   }
-  $('#cf-subject').textContent = $('#s-subject').value.trim() || '（件名なし・添付原稿のみ）';
+  const hasCover = !!($('#s-subject').value.trim() || stripSig($('#s-body').value));
+  $('#cf-subject').textContent = $('#s-subject').value.trim() || (hasCover ? '（件名なし）' : '（送付状なし・添付原稿のみ）');
   $('#cf-body').textContent = bodyWithSig();
-  $('#cf-files').textContent = attach.length ? attach.map(f=>f.name).join(' / ') : 'なし（送付状のみ）';
+  $('#cf-files').textContent = (hasCover ? ['📄FAX送付状'] : []).concat(attach.map(f=>f.name)).join(' / ') || 'なし';
   $('#confirm-ov').classList.add('show');
 };
 $('#cf-cancel').onclick = ()=>$('#confirm-ov').classList.remove('show');
@@ -865,10 +880,10 @@ $('#cf-ok').onclick = async ()=>{
     let r;
     if(sendMode==='single'){
       const n = destNumber();
-      r = await apiPost({action:'send', to:n, vendor:selContact?selContact.name:'', subject:$('#s-subject').value.trim(), body:bodyWithSig(), files});
+      r = await apiPost({action:'send', to:n, vendor:selContact?selContact.name:'', subject:$('#s-subject').value.trim(), body:stripSig($('#s-body').value), files});
     } else {
       const targets = CONTACTS.filter(c=>bulkChecked.has(c.num81)).map(c=>({num:c.num81, name:c.name}));
-      r = await apiPost({action:'sendbulk', targets, subject:$('#s-subject').value.trim(), body:bodyWithSig(), files});
+      r = await apiPost({action:'sendbulk', targets, subject:$('#s-subject').value.trim(), body:stripSig($('#s-body').value), files});
     }
     if(r.ok){
       $('#confirm-ov').classList.remove('show');
