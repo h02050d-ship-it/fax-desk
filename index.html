@@ -834,7 +834,7 @@ function fileToB64(f){
 
 /* ==== 送信 ==== */
 $('#btn-send').onclick = ()=>{
-  if(!$('#s-subject').value.trim()){ toast('件名を入力してください'); return; }
+  if(!$('#s-subject').value.trim() && !attach.length){ toast('件名を入力するか、ファイルを添付してください'); return; }
   const total = attach.reduce((s,f)=>s+f.size,0);
   if(total > 18*1024*1024){ toast('添付が大きすぎます（合計18MBまで）'); return; }
 
@@ -850,7 +850,7 @@ $('#btn-send').onclick = ()=>{
     $('#cf-title').textContent = `📢 ${targets.length}件に一括送信しますか？`;
     $('#cf-vendor').innerHTML = targets.map(c=>`・${esc(c.name)}（${esc(c.num)}）`).join('<br>');
   }
-  $('#cf-subject').textContent = $('#s-subject').value.trim();
+  $('#cf-subject').textContent = $('#s-subject').value.trim() || '（件名なし・添付原稿のみ）';
   $('#cf-body').textContent = bodyWithSig();
   $('#cf-files').textContent = attach.length ? attach.map(f=>f.name).join(' / ') : 'なし（送付状のみ）';
   $('#confirm-ov').classList.add('show');
