@@ -341,7 +341,7 @@ textarea{resize:vertical; min-height:130px}
           <button class="abtn" id="btn-addcontact">＋取引先を登録</button>
         </div>
         <div class="preview-stack">
-          <div class="preview-label">📄 送付状（FAX1枚目のイメージ）</div>
+          <div class="preview-label" id="cover-label">📄 送付状（FAX1枚目のイメージ）</div>
           <div class="cover" id="cover">
             <div class="cv-date" id="cv-date"></div>
             <div class="cv-title">ＦＡＸ送付状</div>
@@ -810,7 +810,13 @@ function stripSig(t){
 function renderCover(){
   const sub = $('#s-subject').value.trim();
   const body = stripSig($('#s-body').value);
+  // 件名・本文が両方空＋添付ありなら送付状は付かない → プレビュー自体を隠して添付を1枚目扱いに
+  const noCoverWithAttach = !sub && !body && attach.length>0;
+  $('#cover').classList.toggle('hidden', noCoverWithAttach);
+  const cl = $('#cover-label');
+  if(cl){ cl.textContent = noCoverWithAttach ? '📄 送信イメージ（添付が1枚目になります）' : '📄 送付状（FAX1枚目のイメージ）'; }
   $('#cover').classList.toggle('nocover', !sub && !body);
+  if(noCoverWithAttach) return; // 送付状は表示しないので以降の描画は不要
 
   const d = new Date();
   $('#cv-date').textContent = `送信日：${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
@@ -1037,7 +1043,7 @@ $('#btn-send').onclick = ()=>{
   }
   const hasCover = !!($('#s-subject').value.trim() || stripSig($('#s-body').value));
   $('#cf-subject').textContent = $('#s-subject').value.trim() || (hasCover ? '（件名なし）' : '（送付状なし・添付原稿のみ）');
-  $('#cf-body').textContent = bodyWithSig();
+  $('#cf-body').textContent = stripSig($('#s-body').value) || (hasCover ? '（本文なし）' : '－');
   $('#cf-files').textContent = (hasCover ? ['📄FAX送付状'] : []).concat(attach.map(f=>f.name)).join(' / ') || 'なし';
   $('#confirm-ov').classList.add('show');
 };
