@@ -24,7 +24,7 @@ header{background:#fff; border-bottom:1px solid var(--line); position:sticky; to
 .hsp{flex:1}
 .iconbtn{border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 12px; cursor:pointer; font-size:13px; color:var(--sub)}
 .iconbtn:hover{background:var(--gray-soft)}
-main{max-width:1080px; margin:0 auto; padding:14px 16px 90px}
+main{max-width:1180px; margin:0 auto; padding:14px 16px 90px}
 .tabs{display:flex; gap:6px; margin-bottom:14px}
 .tab{flex:1; text-align:center; padding:10px 4px; border-radius:10px; border:1px solid var(--line);
   background:#fff; cursor:pointer; font-weight:700; font-size:14px; color:var(--sub); position:relative}
@@ -179,6 +179,68 @@ textarea{resize:vertical; min-height:130px}
 .grow .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .grow .num{color:var(--sub); font-size:11.5px; white-space:nowrap}
 .grow select{width:110px; padding:5px 6px; font-size:12.5px}
+/* ===== 2カラム構成（納品書ツール風） ===== */
+.compose{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,540px); gap:18px; align-items:start}
+.compose-right{position:sticky; top:70px}
+.actionbar{display:flex; gap:10px; align-items:center; background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:12px; flex-wrap:wrap}
+.preview-stack{display:flex; flex-direction:column; gap:14px}
+.preview-label{font-size:12px; font-weight:700; color:var(--sub); text-align:center}
+/* 受信2カラム */
+.inbox-2col{display:grid; grid-template-columns:minmax(270px,350px) minmax(0,1fr); gap:16px; align-items:start}
+.inbox-left{display:flex; flex-direction:column; gap:10px}
+.ilist{border:1px solid var(--line); border-radius:12px; background:#fff; overflow-y:auto; max-height:calc(100vh - 210px)}
+.irow{display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--line); cursor:pointer}
+.irow:last-child{border-bottom:none}
+.irow:hover{background:var(--gray-soft)}
+.irow.sel{background:var(--blue-soft)}
+.idot{width:11px; height:11px; border-radius:50%; flex-shrink:0}
+.irow .iv{flex:1; min-width:0}
+.irow .ivn{font-weight:700; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.irow .ivm{font-size:11.5px; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.irow .ist{font-size:10.5px; font-weight:800; padding:1px 7px; border-radius:999px; flex-shrink:0}
+.inbox-right{position:sticky; top:70px; background:#fff; border:1px solid var(--line); border-radius:12px; overflow:hidden; min-height:300px}
+.ip-bar{display:flex; gap:8px; align-items:center; padding:10px 12px; border-bottom:1px solid var(--line); flex-wrap:wrap; background:#fbfcfe}
+.ip-bar .ttl{font-weight:800; font-size:14px; margin-right:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ip-bar select{width:auto; padding:6px 8px; font-size:13px; border-radius:8px}
+.ip-body{padding:14px; max-height:calc(100vh - 190px); overflow:auto; background:#f7f9fb}
+.ip-body canvas, .ip-body img{width:100%; max-width:620px; margin:0 auto 12px; display:block; background:#fff; box-shadow:0 2px 12px rgba(0,0,0,.15); border-radius:2px}
+.ip-empty{display:flex; align-items:center; justify-content:center; min-height:340px; color:var(--sub); font-size:14px; text-align:center; padding:20px}
+.ip-memo{width:100%; border:1px dashed var(--line); border-radius:8px; padding:6px 10px; font-size:13px; font-family:inherit; background:#fffdf2}
+/* ===== PDF編集エディタ ===== */
+#editor{position:fixed; inset:0; background:#20293a; z-index:140; display:none; flex-direction:column}
+#editor.show{display:flex}
+.ed-top{display:flex; gap:8px; align-items:center; padding:8px 12px; background:#161e2b; color:#fff; flex-wrap:wrap; border-bottom:1px solid #2c384c}
+.ed-top .ed-ttl{font-weight:800; font-size:14px; margin-right:6px}
+.ed-tool{border:1px solid #3a4761; background:#243149; color:#fff; border-radius:8px; padding:7px 12px; font-size:13px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:5px}
+.ed-tool:hover{background:#2d3d59}
+.ed-tool.on{background:var(--blue); border-color:var(--blue)}
+.ed-tool.ghost{background:transparent}
+.ed-sp{flex:1}
+.ed-done{background:var(--green); border-color:var(--green)}
+.ed-cancel{background:transparent; border-color:#3a4761}
+.ed-stamps{display:flex; gap:6px; align-items:center; padding:6px 12px; background:#1b2434; border-bottom:1px solid #2c384c; overflow-x:auto}
+.ed-stamp-btn{flex-shrink:0; width:56px; height:56px; border:1.5px solid #3a4761; border-radius:8px; background:#fff center/contain no-repeat; cursor:pointer; position:relative}
+.ed-stamp-btn.on{border-color:var(--blue); box-shadow:0 0 0 2px var(--blue)}
+.ed-stamp-btn .del{position:absolute; top:-6px; right:-6px; background:var(--red); color:#fff; border-radius:50%; width:18px; height:18px; font-size:11px; line-height:18px; text-align:center; border:none; cursor:pointer}
+.ed-stamp-add{flex-shrink:0; width:56px; height:56px; border:1.5px dashed #3a4761; border-radius:8px; background:#243149; color:#9fb0c9; cursor:pointer; font-size:11px; font-weight:700}
+.ed-hint{color:#9fb0c9; font-size:12px; padding:0 6px}
+.ed-canvas{flex:1; overflow:auto; padding:16px; -webkit-overflow-scrolling:touch}
+.ed-pages{max-width:760px; margin:0 auto; display:flex; flex-direction:column; gap:14px}
+.ed-page{position:relative; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,.4); border-radius:2px; touch-action:none}
+.ed-page > canvas{width:100%; display:block; border-radius:2px}
+.ed-obj{position:absolute; cursor:move; touch-action:none; box-sizing:border-box}
+.ed-obj.sel{outline:1.5px dashed var(--blue); outline-offset:1px}
+.ed-obj.txt{color:#111; font-weight:700; line-height:1.25; white-space:pre-wrap; padding:1px 2px; min-width:20px; background:transparent; border:none; outline:none; overflow:visible}
+.ed-obj img{width:100%; height:100%; display:block; pointer-events:none}
+.ed-handle{position:absolute; right:-8px; bottom:-8px; width:18px; height:18px; background:var(--blue); border:2px solid #fff; border-radius:50%; cursor:nwse-resize}
+.ed-del{position:absolute; left:-9px; top:-9px; width:20px; height:20px; background:var(--red); color:#fff; border:2px solid #fff; border-radius:50%; font-size:12px; line-height:16px; text-align:center; cursor:pointer}
+@media(max-width:820px){
+  .compose{grid-template-columns:1fr}
+  .compose-right{position:static}
+  .inbox-2col{grid-template-columns:1fr}
+  .inbox-right{position:static}
+  .ilist{max-height:44vh}
+}
 @media(max-width:560px){
   .kv{grid-template-columns:70px 1fr} main{padding:10px 10px 90px}
   .grid{grid-template-columns:repeat(2, 1fr); gap:8px}
@@ -223,77 +285,92 @@ textarea{resize:vertical; min-height:130px}
       <div data-mode="bulk">📢 まとめて送信</div>
     </div>
 
-    <div class="card">
-      <!-- 個別宛先 -->
-      <div id="dest-single">
-        <label class="lbl">宛先（取引先から選ぶ）</label>
-        <div class="combo" id="combo">
-          <input class="txt" id="c-search" placeholder="取引先名で検索…（例: ナイス）" autocomplete="off">
-          <div class="combo-list" id="c-list"></div>
+    <div class="compose">
+      <!-- 左：入力欄 -->
+      <div class="compose-left">
+        <div class="card">
+          <!-- 個別宛先 -->
+          <div id="dest-single">
+            <label class="lbl">宛先（取引先から選ぶ）</label>
+            <div class="combo" id="combo">
+              <input class="txt" id="c-search" placeholder="取引先名で検索…（例: ナイス）" autocomplete="off">
+              <div class="combo-list" id="c-list"></div>
+            </div>
+            <div id="c-selected" style="margin-top:8px" class="hidden">
+              <span class="chip"><span id="c-name"></span><span id="c-num" style="font-weight:400"></span><span class="x" id="c-clear">✕</span></span>
+            </div>
+            <label class="lbl">または FAX番号を直接入力</label>
+            <input class="txt" id="s-manual" placeholder="例: 0538-42-1138" inputmode="tel">
+            <div class="dest-preview" id="dest-preview"></div>
+          </div>
+
+          <!-- 一括宛先 -->
+          <div id="dest-bulk" class="hidden">
+            <div class="row" style="justify-content:space-between">
+              <label class="lbl" style="margin:0">ジャンルを選ぶ → 宛先を確認</label>
+              <button class="abtn" id="btn-genre-mng">👥 取引先管理</button>
+            </div>
+            <div class="gchips" id="genre-chips" style="margin-top:8px"></div>
+            <div class="row" style="margin-top:10px; justify-content:space-between">
+              <span class="hint" id="bulk-count" style="margin:0">宛先 0件</span>
+              <span>
+                <button class="abtn" id="bulk-all">全選択</button>
+                <button class="abtn" id="bulk-none">全解除</button>
+              </span>
+            </div>
+            <div class="targets" id="target-list"><div class="empty">ジャンルを選択してください</div></div>
+          </div>
+
+          <label class="lbl">件名（送付状のタイトルになります）</label>
+          <input class="txt" id="s-subject" placeholder="例:【林材木店】お見積りの件">
+          <label class="lbl">本文（送付状に印字されます）</label>
+          <textarea id="s-body" placeholder="いつもお世話になっております。&#10;株式会社林材木店です。&#10;&#10;（ここに書いた文章がFAX1枚目の送付状になります）"></textarea>
+
+          <label class="lbl">添付ファイル（PDF・Word・Excel・画像／これがFAX原稿になります）</label>
+          <input type="file" id="s-files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.tif,.tiff">
+          <div class="hint">右にA4送信イメージが出ます。PDF・画像はそのまま、Word/Excelは送信時にFAX化されます。合計18MBまで。件名・本文が両方空なら送付状なしで原稿だけ送られます。</div>
         </div>
-        <div id="c-selected" style="margin-top:8px" class="hidden">
-          <span class="chip"><span id="c-name"></span><span id="c-num" style="font-weight:400"></span><span class="x" id="c-clear">✕</span></span>
-        </div>
-        <label class="lbl">または FAX番号を直接入力</label>
-        <input class="txt" id="s-manual" placeholder="例: 0538-42-1138" inputmode="tel">
-        <div class="dest-preview" id="dest-preview"></div>
       </div>
 
-      <!-- 一括宛先 -->
-      <div id="dest-bulk" class="hidden">
-        <div class="row" style="justify-content:space-between">
-          <label class="lbl" style="margin:0">ジャンルを選ぶ → 宛先を確認</label>
-          <button class="abtn" id="btn-genre-mng">👥 取引先管理</button>
+      <!-- 右：ボタン＋プレビュー -->
+      <div class="compose-right">
+        <div class="actionbar">
+          <button class="btn" id="btn-send">📠 FAXを送信する</button>
+          <button class="btn sub" id="btn-clear">クリア</button>
+          <span class="hsp"></span>
+          <button class="abtn" id="btn-addcontact">＋取引先を登録</button>
         </div>
-        <div class="gchips" id="genre-chips" style="margin-top:8px"></div>
-        <div class="row" style="margin-top:10px; justify-content:space-between">
-          <span class="hint" id="bulk-count" style="margin:0">宛先 0件</span>
-          <span>
-            <button class="abtn" id="bulk-all">全選択</button>
-            <button class="abtn" id="bulk-none">全解除</button>
-          </span>
+        <div class="preview-stack">
+          <div class="preview-label">📄 送付状（FAX1枚目のイメージ）</div>
+          <div class="cover" id="cover">
+            <div class="cv-date" id="cv-date"></div>
+            <div class="cv-title">ＦＡＸ送付状</div>
+            <div class="cv-rule"></div>
+            <div class="cv-head">
+              <div class="cv-to"><span id="cv-to">（宛先未設定）</span><br><span class="cv-tofax" id="cv-tofax"></span></div>
+              <div class="cv-from"><b>株式会社林材木店</b><br>〒437-1203 静岡県磐田市福田5490-47<br>TEL 0538-58-2395　FAX 050-3146-7566<br>Email info@hayazai.com　HP hayazai.com</div>
+            </div>
+            <div class="cv-subject" id="cv-subject"></div>
+            <div class="cv-count" id="cv-count"></div>
+            <div class="cv-body" id="cv-body"></div>
+          </div>
+          <div class="filelist" id="filelist"></div>
         </div>
-        <div class="targets" id="target-list"><div class="empty">ジャンルを選択してください</div></div>
-      </div>
-
-      <label class="lbl">件名（送付状のタイトルになります）</label>
-      <input class="txt" id="s-subject" placeholder="例:【林材木店】お見積りの件">
-      <label class="lbl">本文（送付状に印字されます）</label>
-      <textarea id="s-body" placeholder="いつもお世話になっております。&#10;株式会社林材木店です。&#10;&#10;（ここに書いた文章がFAX1枚目の送付状になります）"></textarea>
-
-      <label class="lbl">📄 送付状プレビュー（この内容のPDFがFAX1枚目になります）</label>
-      <div class="cover" id="cover">
-        <div class="cv-date" id="cv-date"></div>
-        <div class="cv-title">ＦＡＸ送付状</div>
-        <div class="cv-rule"></div>
-        <div class="cv-head">
-          <div class="cv-to"><span id="cv-to">（宛先未設定）</span><br><span class="cv-tofax" id="cv-tofax"></span></div>
-          <div class="cv-from"><b>株式会社林材木店</b><br>〒437-1203 静岡県磐田市福田5490-47<br>TEL 0538-58-2395　FAX 050-3146-7566<br>Email info@hayazai.com　HP hayazai.com</div>
-        </div>
-        <div class="cv-subject" id="cv-subject"></div>
-        <div class="cv-count" id="cv-count"></div>
-        <div class="cv-body" id="cv-body"></div>
-      </div>
-      <div class="hint">件名・本文が両方空のときは送付状なしで、添付原稿だけが送信されます。</div>
-
-      <label class="lbl">添付ファイル（PDF・Word・Excel・画像／これがFAX原稿になります）</label>
-      <input type="file" id="s-files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.tif,.tiff">
-      <div class="filelist" id="filelist"></div>
-      <div class="hint">選ぶと下に送信イメージ（A4）が出ます。PDF・画像はそのまま、Word/Excelは送信時にFAX化されます。合計18MBまで。</div>
-
-      <div style="margin-top:18px" class="row">
-        <button class="btn" id="btn-send">📠 FAXを送信する</button>
-        <button class="btn sub" id="btn-clear">クリア</button>
-        <span class="hsp"></span>
-        <button class="abtn" id="btn-addcontact">＋取引先を登録</button>
       </div>
     </div>
   </section>
 
   <!-- ============ 受信 ============ -->
   <section id="tab-inbox">
-    <div class="filters" id="inbox-filters"></div>
-    <div id="inbox-list"><div class="empty">読み込み中…</div></div>
+    <div class="inbox-2col">
+      <div class="inbox-left">
+        <div class="filters" id="inbox-filters"></div>
+        <div class="ilist" id="inbox-list"><div class="empty">読み込み中…</div></div>
+      </div>
+      <div class="inbox-right" id="inbox-preview">
+        <div class="ip-empty">← 左の一覧からFAXを選ぶと<br>ここに大きく表示されます</div>
+      </div>
+    </div>
   </section>
 
   <!-- ============ 履歴 ============ -->
@@ -311,6 +388,23 @@ textarea{resize:vertical; min-height:130px}
   </div>
   <div class="v-body"><div class="v-pages" id="v-pages"></div></div>
   <div class="v-foot"><div class="v-foot-in" id="v-foot"></div></div>
+</div>
+
+<!-- PDF編集エディタ -->
+<div id="editor">
+  <div class="ed-top">
+    <span class="ed-ttl" id="ed-title">FAXを編集</span>
+    <button class="ed-tool" id="ed-tool-text">🅣 文字を追加</button>
+    <button class="ed-tool" id="ed-tool-stamp">🖋 印鑑</button>
+    <button class="ed-tool ghost" id="ed-undo">↩︎ 元に戻す</button>
+    <span class="ed-hint" id="ed-status"></span>
+    <span class="ed-sp"></span>
+    <button class="ed-tool ed-cancel" id="ed-cancel">キャンセル</button>
+    <button class="ed-tool ed-done" id="ed-done">✔ 反映して送信へ</button>
+  </div>
+  <div class="ed-stamps hidden" id="ed-stamps"></div>
+  <div class="ed-canvas"><div class="ed-pages" id="ed-pages"></div></div>
+  <input type="file" id="ed-stamp-file" accept="image/*" class="hidden">
 </div>
 
 <!-- 送信確認モーダル -->
@@ -385,6 +479,7 @@ let inboxFilter = '未対応';
 let sendMode = 'single';
 let bulkGenre = '';
 let bulkChecked = new Set();   // num81
+let edState = null;            // PDF編集エディタの状態
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1055,42 +1150,77 @@ function thumbHolder(id, pillHtml, pagesHtml){
     ${pillHtml}${pagesHtml}
   </div>`;
 }
+let selInboxId = null;
+function dotColor(st){ return st==='未対応'?'#dc2626':st==='要返信'?'#d97706':st==='返信済'?'#2563eb':st==='対応済'?'#16a34a':'#9aa7b5'; }
 function renderInbox(){
   renderInboxFilters();
   const rows = INBOX.filter(r=>inboxFilter==='all' || r.status===inboxFilter);
   if(!rows.length){ $('#inbox-list').innerHTML = '<div class="empty">該当する受信FAXはありません</div>'; return; }
-  $('#inbox-list').innerHTML = `<div class="grid">` + rows.map(r=>`
-    <div class="gcard" data-id="${esc(r.msgId)}">
-      ${thumbHolder(r.msgId, `<span class="gpill pill ${pillClass(r.status)}">${esc(r.status)}</span>`, r.pages?`<span class="gpages">${r.pages}枚</span>`:'')}
-      <div class="ginfo">
-        <span class="gvendor">${esc(r.vendor || '不明 '+fmtNum(r.faxNum))}</span>
-        <span class="gmeta">${fmtDate(r.date)}｜${esc(fmtNum(r.faxNum))}</span>
-        <div class="gact">
-          <select data-act="status" data-id="${esc(r.msgId)}">${INBOX_STATUSES.map(s=>`<option ${s===r.status?'selected':''}>${s}</option>`).join('')}</select>
-          <button class="abtn" data-act="reply" data-id="${esc(r.msgId)}">↩️</button>
-        </div>
+  $('#inbox-list').innerHTML = rows.map(r=>`
+    <div class="irow ${r.msgId===selInboxId?'sel':''}" data-id="${esc(r.msgId)}">
+      <span class="idot" style="background:${dotColor(r.status)}"></span>
+      <div class="iv">
+        <div class="ivn">${esc(r.vendor || '不明 '+fmtNum(r.faxNum))}</div>
+        <div class="ivm">${fmtDate(r.date)}｜${esc(fmtNum(r.faxNum))}${r.pages?`｜${r.pages}枚`:''}</div>
       </div>
-    </div>`).join('') + `</div>`;
-  document.querySelectorAll('#inbox-list .gthumb').forEach(el=>{
-    thumbObserver.observe(el);
-    el.onclick = ()=>{
-      const card = el.closest('.gcard');
-      const r = INBOX.find(x=>x.msgId===card.dataset.id);
-      if(r) openViewer('inbox', r);
-    };
+      <span class="ist ${pillClass(r.status)}">${esc(r.status)}</span>
+    </div>`).join('');
+  document.querySelectorAll('#inbox-list .irow').forEach(el=>{
+    el.onclick = ()=>{ const r = INBOX.find(x=>x.msgId===el.dataset.id); if(r) selectInbox(r); };
   });
-  document.querySelectorAll('#inbox-list [data-act="status"]').forEach(el=>{
-    el.onchange = async ()=>{
-      const r = INBOX.find(x=>x.msgId===el.dataset.id); if(!r) return;
-      r.status = el.value; markLocalStatus(el.dataset.id, {status: el.value}); renderInbox();
-      const res = await apiPost({action:'status', msgId: el.dataset.id, status: el.value});
-      if(!res.ok) toast('保存に失敗しました');
-      else if(res.filed && res.filed.moved && res.filed.moved.length) toast('📁 ' + [...new Set(res.filed.moved.map(m=>m.dest))].join('・') + ' へ移動しました', 3500);
-    };
-  });
-  document.querySelectorAll('#inbox-list [data-act="reply"]').forEach(el=>{
-    el.onclick = e=>{ e.stopPropagation(); const r = INBOX.find(x=>x.msgId===el.dataset.id); if(r) prefillReply(r); };
-  });
+}
+async function selectInbox(item){
+  selInboxId = item.msgId;
+  document.querySelectorAll('#inbox-list .irow').forEach(el=>el.classList.toggle('sel', el.dataset.id===item.msgId));
+  const pane = $('#inbox-preview');
+  pane.innerHTML = `
+    <div class="ip-bar">
+      <span class="ttl">${esc(item.vendor || '不明 '+fmtNum(item.faxNum))}</span>
+      <select id="ip-status">${INBOX_STATUSES.map(s=>`<option ${s===item.status?'selected':''}>${s}</option>`).join('')}</select>
+      <button class="abtn primary" id="ip-edit">✏️ 編集して返信</button>
+      <button class="abtn" id="ip-reply">↩️ 返信</button>
+      <button class="abtn" id="ip-dl">⬇️</button>
+    </div>
+    <div style="padding:8px 12px 0"><input class="ip-memo" id="ip-memo" placeholder="メモ…" value="${esc(item.memo||'')}"></div>
+    <div class="ip-body" id="ip-body"><div class="ip-empty"><span class="spin dark"></span> 読み込み中…</div></div>`;
+  $('#ip-status').onchange = async e=>{
+    item.status = e.target.value; markLocalStatus(item.msgId, {status:item.status}); renderInbox();
+    const r = await apiPost({action:'status', msgId:item.msgId, status:item.status});
+    if(!r.ok) toast('保存に失敗しました');
+    else if(r.filed && r.filed.moved && r.filed.moved.length) toast('📁 ' + [...new Set(r.filed.moved.map(m=>m.dest))].join('・') + ' へ移動しました', 3500);
+  };
+  $('#ip-memo').onchange = async e=>{
+    item.memo = e.target.value; markLocalStatus(item.msgId, {memo:item.memo});
+    const r = await apiPost({action:'status', msgId:item.msgId, memo:item.memo});
+    if(!r.ok) toast('メモの保存に失敗しました');
+  };
+  $('#ip-reply').onclick = ()=>prefillReply(item);
+  $('#ip-edit').onclick = ()=>openEditor(item);
+  $('#ip-dl').onclick = ()=>downloadFax(item.msgId, item.vendor||item.faxNum);
+  const body = $('#ip-body');
+  try{
+    const files = await getFaxFiles(item.msgId);
+    if(selInboxId!==item.msgId) return;
+    body.innerHTML = '';
+    const w = 620 * Math.min(2, window.devicePixelRatio||1);
+    for(const f of files){
+      if(/^image\//.test(f.mime)){
+        const img = document.createElement('img'); img.src = `data:${f.mime};base64,${f.data}`; body.appendChild(img);
+      } else {
+        const bytes = b64ToBytes(f.data);
+        const pdf = await pdfjsLib.getDocument({data: bytes.slice()}).promise;
+        for(let p=1; p<=pdf.numPages; p++){
+          const page = await pdf.getPage(p);
+          const vp1 = page.getViewport({scale:1});
+          const vp = page.getViewport({scale: w/vp1.width});
+          const cv = document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height;
+          body.appendChild(cv);
+          await page.render({canvasContext: cv.getContext('2d'), viewport: vp, intent:'print'}).promise;
+          if(selInboxId!==item.msgId) return;
+        }
+      }
+    }
+  }catch(err){ body.innerHTML = `<div class="ip-empty">読み込みに失敗しました<br>${esc(err.message||err)}</div>`; }
 }
 
 /* ==== 履歴（サムネイルグリッド） ==== */
@@ -1122,6 +1252,212 @@ function renderSent(){
   document.querySelectorAll('#history-list .gcard').forEach(el=>{
     el.onclick = ()=>{ const r = SENT[Number(el.dataset.i)]; if(r) openViewer('sent', r); };
   });
+}
+
+/* ==== PDF編集エディタ（受信FAXにハンコ・文字を入れて送り返す） ==== */
+function loadImg(src){ return new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=src; }); }
+function edGetStamps(){ try{ return JSON.parse(localStorage.getItem('fd_stamps')||'[]'); }catch(_){ return []; } }
+function edSetStamps(a){ try{ localStorage.setItem('fd_stamps', JSON.stringify(a)); }catch(_){ toast('印鑑の保存に失敗（容量超過かも）'); } }
+
+async function openEditor(item){
+  edState = { item, pages: [], tool:null, stamp:null, history:[] };
+  $('#ed-title').textContent = `編集：${item.vendor || fmtNum(item.faxNum)}`;
+  $('#ed-pages').innerHTML = `<div class="ed-hint" style="text-align:center;padding:40px"><span class="spin"></span> 読み込み中…</div>`;
+  $('#ed-stamps').classList.add('hidden');
+  setEdTool(null);
+  $('#editor').classList.add('show'); document.body.style.overflow='hidden';
+  try{
+    const files = await getFaxFiles(item.msgId);
+    $('#ed-pages').innerHTML='';
+    const DISP=720, DPR=Math.min(2, window.devicePixelRatio||1);
+    for(const f of files){
+      if(/^image\//.test(f.mime)){
+        const img = await loadImg(`data:${f.mime};base64,${f.data}`);
+        const cv = addEdPage(DISP, Math.round(DISP*img.height/img.width), DPR);
+        cv.getContext('2d').drawImage(img, 0,0, cv.width, cv.height);
+      } else {
+        const bytes=b64ToBytes(f.data);
+        const pdf=await pdfjsLib.getDocument({data:bytes.slice()}).promise;
+        for(let p=1;p<=pdf.numPages;p++){
+          const page=await pdf.getPage(p); const vp1=page.getViewport({scale:1});
+          const cv=addEdPage(DISP, Math.round(DISP*vp1.height/vp1.width), DPR);
+          const vp=page.getViewport({scale: cv.width/vp1.width});
+          await page.render({canvasContext:cv.getContext('2d'),viewport:vp,intent:'print'}).promise;
+        }
+      }
+    }
+    renderStampPalette();
+  }catch(err){ $('#ed-pages').innerHTML=`<div class="ed-hint" style="text-align:center;padding:40px">読み込み失敗: ${esc(err.message||err)}</div>`; }
+}
+function addEdPage(dispW, dispH, dpr){
+  const pageEl=document.createElement('div'); pageEl.className='ed-page';
+  pageEl.style.width='100%'; pageEl.style.aspectRatio=`${dispW}/${dispH}`;
+  const cv=document.createElement('canvas'); cv.width=Math.round(dispW*dpr); cv.height=Math.round(dispH*dpr);
+  cv.style.width='100%';
+  pageEl.appendChild(cv);
+  pageEl.addEventListener('pointerdown', e=>onEdPagePointer(e, pageEl));
+  $('#ed-pages').appendChild(pageEl);
+  edState.pages.push({el:pageEl, cv});
+  return cv;
+}
+function setEdTool(t){
+  edState.tool=t;
+  $('#ed-tool-text').classList.toggle('on', t==='text');
+  $('#ed-tool-stamp').classList.toggle('on', t==='stamp');
+  document.querySelectorAll('.ed-page').forEach(p=>p.style.cursor = t ? 'crosshair' : '');
+  $('#ed-status').textContent = t==='text' ? '文字を置きたい場所をクリック' : t==='stamp' ? '印鑑を押したい場所をクリック' : '';
+}
+function onEdPagePointer(e, pageEl){
+  if(e.target.closest('.ed-obj')) return;
+  // 空クリックで選択解除
+  if(!edState.tool){ document.querySelectorAll('.ed-obj.sel').forEach(o=>o.classList.remove('sel')); return; }
+  const r=pageEl.getBoundingClientRect();
+  const x=e.clientX-r.left, y=e.clientY-r.top;
+  if(edState.tool==='text') placeText(pageEl, x, y);
+  else if(edState.tool==='stamp' && edState.stamp) placeStamp(pageEl, x, y, edState.stamp);
+  setEdTool(null);
+}
+function edFrame(obj){
+  const del=document.createElement('div'); del.className='ed-del'; del.textContent='×';
+  const h=document.createElement('div'); h.className='ed-handle';
+  obj.appendChild(del); obj.appendChild(h);
+  del.addEventListener('pointerdown', e=>e.stopPropagation());
+  del.addEventListener('click', e=>{ e.stopPropagation(); obj.remove(); });
+  return h;
+}
+function selectEdObj(obj){ document.querySelectorAll('.ed-obj.sel').forEach(o=>o.classList.remove('sel')); obj.classList.add('sel'); }
+function placeText(pageEl, x, y){
+  const obj=document.createElement('div'); obj.className='ed-obj txt sel';
+  obj.style.left=x+'px'; obj.style.top=y+'px'; obj.dataset.fontpx='24'; obj.style.fontSize='24px';
+  obj.textContent='ここに入力';
+  const h=edFrame(obj); pageEl.appendChild(obj);
+  wireEdDrag(obj, pageEl, ()=>obj.getAttribute('contenteditable')==='true');
+  wireEdResize(h, obj, pageEl, 'text');
+  obj.addEventListener('dblclick', ()=>{ obj.setAttribute('contenteditable','true'); obj.focus();
+    const sel=window.getSelection(), rng=document.createRange(); rng.selectNodeContents(obj); sel.removeAllRanges(); sel.addRange(rng); });
+  obj.addEventListener('blur', ()=>{ obj.removeAttribute('contenteditable'); if(!obj.innerText.trim()) obj.remove(); });
+  // 置いたら即編集
+  setTimeout(()=>{ obj.setAttribute('contenteditable','true'); obj.focus(); const sel=window.getSelection(), rng=document.createRange(); rng.selectNodeContents(obj); sel.removeAllRanges(); sel.addRange(rng); }, 0);
+  edState.history.push(obj); selectEdObj(obj);
+}
+async function placeStamp(pageEl, x, y, dataUrl){
+  const img=await loadImg(dataUrl);
+  const obj=document.createElement('div'); obj.className='ed-obj sel';
+  const w=140, hgt=Math.round(w*img.naturalHeight/img.naturalWidth);
+  obj.style.left=(x-w/2)+'px'; obj.style.top=(y-hgt/2)+'px'; obj.style.width=w+'px'; obj.style.height=hgt+'px';
+  const im=document.createElement('img'); im.src=dataUrl; obj.appendChild(im);
+  const h=edFrame(obj); pageEl.appendChild(obj);
+  wireEdDrag(obj, pageEl, ()=>false);
+  wireEdResize(h, obj, pageEl, 'stamp');
+  edState.history.push(obj); selectEdObj(obj);
+}
+function wireEdDrag(obj, pageEl, isEditing){
+  obj.addEventListener('pointerdown', e=>{
+    if(e.target.classList.contains('ed-handle')||e.target.classList.contains('ed-del')) return;
+    selectEdObj(obj);
+    if(isEditing()) return; // 編集中はドラッグしない（キャレット操作優先）
+    e.preventDefault();
+    const r=pageEl.getBoundingClientRect();
+    const ox=e.clientX-r.left-(parseFloat(obj.style.left)||0);
+    const oy=e.clientY-r.top-(parseFloat(obj.style.top)||0);
+    function mv(ev){ obj.style.left=(ev.clientX-r.left-ox)+'px'; obj.style.top=(ev.clientY-r.top-oy)+'px'; }
+    function up(){ window.removeEventListener('pointermove',mv); window.removeEventListener('pointerup',up); }
+    window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up);
+  });
+}
+function wireEdResize(handle, obj, pageEl, kind){
+  handle.addEventListener('pointerdown', e=>{
+    e.stopPropagation(); e.preventDefault();
+    const sx=e.clientX, startW=obj.offsetWidth, startF=parseFloat(obj.dataset.fontpx||'24');
+    const im=obj.querySelector('img'); const asp=im?(im.naturalHeight/im.naturalWidth):1;
+    function mv(ev){
+      const dw=ev.clientX-sx;
+      if(kind==='stamp'){ const w=Math.max(30,startW+dw); obj.style.width=w+'px'; obj.style.height=(w*asp)+'px'; }
+      else { const f=Math.max(10, startF+dw*0.4); obj.dataset.fontpx=f; obj.style.fontSize=f+'px'; }
+    }
+    function up(){ window.removeEventListener('pointermove',mv); window.removeEventListener('pointerup',up); }
+    window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up);
+  });
+}
+function renderStampPalette(){
+  const wrap=$('#ed-stamps'); const stamps=edGetStamps();
+  wrap.innerHTML = stamps.map((s,i)=>`<div class="ed-stamp-btn" data-i="${i}" style="background-image:url('${s.dataUrl}')"><button class="del" data-del="${i}">×</button></div>`).join('')
+    + `<button class="ed-stamp-add" id="ed-stamp-add">＋印鑑<br>を追加</button>`;
+  wrap.querySelectorAll('.ed-stamp-btn').forEach(el=>{
+    el.onclick=e=>{
+      if(e.target.classList.contains('del')) return;
+      const s=edGetStamps()[Number(el.dataset.i)]; if(!s) return;
+      edState.stamp=s.dataUrl; setEdTool('stamp');
+      wrap.querySelectorAll('.ed-stamp-btn').forEach(x=>x.classList.toggle('on', x===el));
+    };
+  });
+  wrap.querySelectorAll('[data-del]').forEach(el=>{
+    el.onclick=e=>{ e.stopPropagation(); const a=edGetStamps(); a.splice(Number(el.dataset.del),1); edSetStamps(a); renderStampPalette(); };
+  });
+  $('#ed-stamp-add').onclick=()=>$('#ed-stamp-file').click();
+}
+$('#ed-stamp-file').onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  // 透過PNG推奨。大きすぎる画像は縮小して保存
+  try{
+    const img=await loadImg(URL.createObjectURL(f));
+    const max=400, sc=Math.min(1, max/Math.max(img.width,img.height));
+    const cv=document.createElement('canvas'); cv.width=Math.round(img.width*sc); cv.height=Math.round(img.height*sc);
+    cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+    const dataUrl=cv.toDataURL('image/png');
+    const a=edGetStamps(); a.push({name:f.name, dataUrl}); edSetStamps(a); renderStampPalette();
+    toast('印鑑を登録しました。押したい場所をクリック');
+  }catch(_){ toast('画像の読み込みに失敗しました'); }
+};
+$('#ed-tool-text').onclick=()=>setEdTool(edState.tool==='text'?null:'text');
+$('#ed-tool-stamp').onclick=()=>{
+  const show=$('#ed-stamps').classList.toggle('hidden')===false;
+  if(show && !edGetStamps().length){ toast('まず「＋印鑑を追加」で会社印の画像を登録してください', 3500); }
+};
+$('#ed-undo').onclick=()=>{ const o=edState.history.pop(); if(o) o.remove(); };
+$('#ed-cancel').onclick=closeEditor;
+$('#ed-done').onclick=exportEditor;
+function closeEditor(){ $('#editor').classList.remove('show'); document.body.style.overflow=''; edState=null; }
+async function exportEditor(){
+  if(!edState || !edState.pages.length){ closeEditor(); return; }
+  // 編集中テキストを確定
+  document.querySelectorAll('.ed-obj[contenteditable="true"]').forEach(o=>o.blur());
+  document.querySelectorAll('.ed-obj.sel').forEach(o=>o.classList.remove('sel'));
+  $('#ed-done').disabled=true; $('#ed-status').textContent='反映中…';
+  const item=edState.item, imgs=[]; let idx=0;
+  try{
+    for(const pg of edState.pages){
+      const ec=document.createElement('canvas'); ec.width=pg.cv.width; ec.height=pg.cv.height;
+      const ctx=ec.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,ec.width,ec.height); ctx.drawImage(pg.cv,0,0);
+      const ratio=pg.cv.width/pg.el.clientWidth;
+      [...pg.el.querySelectorAll('.ed-obj')].forEach(obj=>{
+        const left=parseFloat(obj.style.left)||0, top=parseFloat(obj.style.top)||0;
+        if(obj.classList.contains('txt')){
+          const f=(parseFloat(obj.dataset.fontpx||'24'))*ratio;
+          ctx.fillStyle='#111'; ctx.textBaseline='top'; ctx.font=`700 ${f}px "Yu Gothic UI","Hiragino Sans",sans-serif`;
+          (obj.innerText||'').split('\n').forEach((ln,i)=>ctx.fillText(ln,(left+2)*ratio,(top+2)*ratio+i*f*1.25));
+        } else {
+          const im=obj.querySelector('img');
+          if(im) ctx.drawImage(im, left*ratio, top*ratio, obj.offsetWidth*ratio, obj.offsetHeight*ratio);
+        }
+      });
+      const blob=await new Promise(res=>ec.toBlob(res,'image/png'));
+      imgs.push(new File([blob], `編集FAX_${++idx}.png`, {type:'image/png'}));
+    }
+  }catch(err){ $('#ed-done').disabled=false; $('#ed-status').textContent=''; toast('反映に失敗: '+(err.message||err)); return; }
+  $('#ed-done').disabled=false; $('#ed-status').textContent='';
+  closeEditor();
+  // 送信フローへ：宛先＝差出人、原稿＝編集後画像
+  sendMode='single';
+  document.querySelectorAll('.seg div').forEach(x=>x.classList.toggle('on', x.dataset.mode==='single'));
+  $('#dest-single').classList.remove('hidden'); $('#dest-bulk').classList.add('hidden');
+  const c=CONTACTS.find(x=>x.num===fmtNum(item.faxNum));
+  if(c) selectContact(c); else { selContact=null; $('#c-selected').classList.add('hidden'); $('#s-manual').value=fmtNum(item.faxNum); }
+  $('#s-subject').value=''; $('#s-body').value='';
+  attach=imgs; renderFiles(); updateDestPreview();
+  switchTab('send');
+  toast('編集した内容を原稿にしました。宛先を確認して送信してください', 4500);
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
 /* ==== タブ・読み込み ==== */
