@@ -614,13 +614,13 @@ function renderViewerFoot(){
       <button class="abtn primary" id="vf-reply">↩️ 返信FAX</button>
       <button class="abtn" id="vf-dl">⬇️ 保存</button>`;
     $('#vf-status').onchange = async e=>{
-      item.status = e.target.value; renderInbox();
+      item.status = e.target.value; markLocalStatus(item.msgId, {status:item.status}); renderInbox();
       const r = await apiPost({action:'status', msgId:item.msgId, status:item.status});
       if(!r.ok) toast('保存に失敗しました');
       else if(r.filed && r.filed.moved && r.filed.moved.length) toast('📁 ' + [...new Set(r.filed.moved.map(m=>m.dest))].join('・') + ' へ移動しました', 3500);
     };
     $('#vf-memo').onchange = async e=>{
-      item.memo = e.target.value;
+      item.memo = e.target.value; markLocalStatus(item.msgId, {memo:item.memo});
       const r = await apiPost({action:'status', msgId:item.msgId, memo:item.memo});
       if(!r.ok) toast('メモの保存に失敗しました');
     };
@@ -1082,7 +1082,7 @@ function renderInbox(){
   document.querySelectorAll('#inbox-list [data-act="status"]').forEach(el=>{
     el.onchange = async ()=>{
       const r = INBOX.find(x=>x.msgId===el.dataset.id); if(!r) return;
-      r.status = el.value; renderInbox();
+      r.status = el.value; markLocalStatus(el.dataset.id, {status: el.value}); renderInbox();
       const res = await apiPost({action:'status', msgId: el.dataset.id, status: el.value});
       if(!res.ok) toast('保存に失敗しました');
       else if(res.filed && res.filed.moved && res.filed.moved.length) toast('📁 ' + [...new Set(res.filed.moved.map(m=>m.dest))].join('・') + ' へ移動しました', 3500);
@@ -1133,12 +1133,31 @@ function switchTab(name){
 }
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
 
+/* 直近のステータス/メモ変更を一定時間ローカル優先で保持し、
+   保存(POST)が遅い間に走った再取得(GET)が古い状態で上書きするのを防ぐ */
+const pendingInbox = new Map(); // msgId -> {status, memo, ts}
+const PENDING_MS = 60000;
+function markLocalStatus(msgId, patch){
+  const cur = pendingInbox.get(String(msgId)) || {};
+  pendingInbox.set(String(msgId), Object.assign(cur, patch, {ts: Date.now()}));
+}
+function applyPendingStatus(rows){
+  const now = Date.now();
+  for(const [id, p] of [...pendingInbox]){
+    const row = rows.find(r=>String(r.msgId)===id);
+    // サーバーが変更を反映済みなら保持解除
+    const synced = row && (p.status==null || row.status===p.status) && (p.memo==null || row.memo===p.memo);
+    if(synced || now - p.ts > PENDING_MS){ pendingInbox.delete(id); continue; }
+    if(row){ if(p.status!=null) row.status = p.status; if(p.memo!=null) row.memo = p.memo; }
+  }
+  return rows;
+}
 async function loadInbox(){
   try{
     const r = await apiGet('inbox');
     if(r.ok){
-      INBOX = r.rows; INBOX._loaded = true;
-      try{ localStorage.setItem('fd_inbox', JSON.stringify(r.rows.slice(0,120))); }catch(_){}
+      INBOX = applyPendingStatus(r.rows); INBOX._loaded = true;
+      try{ localStorage.setItem('fd_inbox', JSON.stringify(INBOX.slice(0,120))); }catch(_){}
       if(!$('#tab-inbox').classList.contains('hidden')) renderInbox(); else renderInboxFilters();
     }
     else toast('受信の取得に失敗: ' + (r.error||''));
