@@ -670,7 +670,7 @@ document.querySelectorAll('.seg div').forEach(el=>{
 function renderComboList(q){
   const list = $('#c-list');
   q = (q||'').trim().toLowerCase();
-  const hits = CONTACTS.filter(c => !q || c.name.toLowerCase().includes(q) || c.num.includes(q.replace(/[^\d]/g,'')||' ')).slice(0, 30);
+  const hits = CONTACTS.filter(c => !q || c.name.toLowerCase().includes(q) || c.num.includes(q.replace(/[^\d]/g,'')||' '));
   if(!hits.length){ list.style.display='none'; return; }
   list.innerHTML = hits.map(c=>`<div class="combo-item" data-n="${esc(c.num81)}"><span>${esc(c.name)}${c.genre?` <span style="color:var(--sub);font-size:11px">[${esc(c.genre)}]</span>`:''}</span><span class="num">${esc(c.num)}</span></div>`).join('');
   list.style.display='block';
