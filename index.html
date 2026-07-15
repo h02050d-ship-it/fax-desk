@@ -540,35 +540,48 @@ const pdfCache = new Map();        // id -> files[]（セッション内）
 const thumbQueue = [];
 let thumbRunning = 0;
 
-/* サムネイルの端末永続キャッシュ（IndexedDB）— 2回目以降は瞬時に表示 */
+/* 端末永続キャッシュ（IndexedDB）— サムネ＋FAX本体。2回目以降・再読込後も瞬時に表示 */
 let IDB = null;
 (function(){
   try{
-    const q = indexedDB.open('faxdesk', 1);
-    q.onupgradeneeded = ()=>q.result.createObjectStore('thumbs');
+    const q = indexedDB.open('faxdesk', 2);
+    q.onupgradeneeded = ()=>{ const db=q.result;
+      if(!db.objectStoreNames.contains('thumbs')) db.createObjectStore('thumbs');
+      if(!db.objectStoreNames.contains('files')) db.createObjectStore('files'); };
     q.onsuccess = ()=>{ IDB = q.result; };
   }catch(_){}
 })();
-function thumbGet(id){
-  return new Promise(res=>{
-    if(!IDB) return res(null);
-    try{
-      const t = IDB.transaction('thumbs').objectStore('thumbs').get(id);
-      t.onsuccess = ()=>res(t.result || null);
-      t.onerror = ()=>res(null);
-    }catch(_){ res(null); }
-  });
-}
-function thumbSet(id, dataUrl){
-  if(!IDB) return;
-  try{ IDB.transaction('thumbs','readwrite').objectStore('thumbs').put(dataUrl, id); }catch(_){}
-}
+function idbGet(store, id){ return new Promise(res=>{ if(!IDB) return res(null);
+  try{ const t=IDB.transaction(store).objectStore(store).get(id); t.onsuccess=()=>res(t.result||null); t.onerror=()=>res(null); }catch(_){ res(null); } }); }
+function idbSet(store, id, val){ if(!IDB) return; try{ IDB.transaction(store,'readwrite').objectStore(store).put(val, id); }catch(_){} }
+function thumbGet(id){ return idbGet('thumbs', id); }
+function thumbSet(id, dataUrl){ idbSet('thumbs', id, dataUrl); }
 async function getFaxFiles(id){
   if(pdfCache.has(id)) return pdfCache.get(id);
+  const cached = await idbGet('files', id);
+  if(cached){ pdfCache.set(id, cached); return cached; }
   const r = await apiGet('pdf', {id});
   if(!r.ok) throw new Error(r.error||'取得失敗');
   pdfCache.set(id, r.files);
+  idbSet('files', id, r.files);
   return r.files;
+}
+/* 未処理を優先して裏で先読み（開く前に取得済みにする） */
+const prefetchQueue = [];
+let prefetchRunning = 0;
+function prefetchPrio(r){ return r.status==='未対応'?0 : r.status==='要返信'?1 : 2; }
+function schedulePrefetch(){
+  const order = [...INBOX].sort((a,b)=>prefetchPrio(a)-prefetchPrio(b));
+  for(const r of order){ if(r.msgId && !pdfCache.has(r.msgId) && !prefetchQueue.includes(r.msgId)) prefetchQueue.push(r.msgId); }
+  pumpPrefetch();
+}
+function pumpPrefetch(){
+  while(prefetchRunning < 3 && prefetchQueue.length){
+    const id = prefetchQueue.shift();
+    if(pdfCache.has(id)) continue;
+    prefetchRunning++;
+    getFaxFiles(id).catch(()=>{}).finally(()=>{ prefetchRunning--; pumpPrefetch(); });
+  }
 }
 function b64ToBytes(b64){ const bin = atob(b64); const u = new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; }
 async function renderPdfPage(bytes, canvas, targetWidth, pageNo=1){
@@ -1478,10 +1491,17 @@ document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>switchTab(t.dataset.t
 /* 直近のステータス/メモ変更を一定時間ローカル優先で保持し、
    保存(POST)が遅い間に走った再取得(GET)が古い状態で上書きするのを防ぐ */
 const pendingInbox = new Map(); // msgId -> {status, memo, ts}
-const PENDING_MS = 60000;
+const PENDING_MS = 120000;
+function saveInboxCache(){ try{ localStorage.setItem('fd_inbox', JSON.stringify(INBOX.slice(0,150))); }catch(_){} }
+function savePending(){ try{ localStorage.setItem('fd_pending', JSON.stringify([...pendingInbox])); }catch(_){} }
+function loadPending(){ try{ const a=JSON.parse(localStorage.getItem('fd_pending')||'[]'); pendingInbox.clear(); const now=Date.now(); a.forEach(([k,v])=>{ if(v && now-v.ts<PENDING_MS) pendingInbox.set(k,v); }); }catch(_){} }
 function markLocalStatus(msgId, patch){
   const cur = pendingInbox.get(String(msgId)) || {};
   pendingInbox.set(String(msgId), Object.assign(cur, patch, {ts: Date.now()}));
+  // メモリ上のINBOXとキャッシュも即更新（再読込しても新しい状態で表示される）
+  const row = INBOX.find(r=>String(r.msgId)===String(msgId));
+  if(row){ if(patch.status!=null) row.status=patch.status; if(patch.memo!=null) row.memo=patch.memo; }
+  saveInboxCache(); savePending();
 }
 function applyPendingStatus(rows){
   const now = Date.now();
@@ -1492,6 +1512,7 @@ function applyPendingStatus(rows){
     if(synced || now - p.ts > PENDING_MS){ pendingInbox.delete(id); continue; }
     if(row){ if(p.status!=null) row.status = p.status; if(p.memo!=null) row.memo = p.memo; }
   }
+  savePending();
   return rows;
 }
 async function loadInbox(){
@@ -1499,30 +1520,32 @@ async function loadInbox(){
     const r = await apiGet('inbox');
     if(r.ok){
       INBOX = applyPendingStatus(r.rows); INBOX._loaded = true;
-      try{ localStorage.setItem('fd_inbox', JSON.stringify(INBOX.slice(0,120))); }catch(_){}
+      saveInboxCache();
       if(!$('#tab-inbox').classList.contains('hidden')) renderInbox(); else renderInboxFilters();
+      schedulePrefetch(); // 未処理を優先して裏で先読み
     }
     else toast('受信の取得に失敗: ' + (r.error||''));
-  }catch(err){ toast('通信エラー（受信）'); }
+  }catch(err){ /* 通信不良でも前回キャッシュ表示を維持 */ }
 }
 async function loadSent(){
   try{
     const r = await apiGet('sent');
     if(r.ok){
       SENT = r.rows; SENT._loaded = true;
-      try{ localStorage.setItem('fd_sent', JSON.stringify(r.rows.slice(0,120))); }catch(_){}
+      try{ localStorage.setItem('fd_sent', JSON.stringify(r.rows.slice(0,150))); }catch(_){}
       if(!$('#tab-history').classList.contains('hidden')) renderSent();
     }
     else toast('履歴の取得に失敗: ' + (r.error||''));
-  }catch(err){ toast('通信エラー（履歴）'); }
+  }catch(err){ /* キャッシュ維持 */ }
 }
 $('#btn-refresh').onclick = ()=>{ toast('最新を取得中…'); loadInbox(); loadSent(); };
 
 async function boot(){
+  loadPending();
   // 前回取得分を即表示（裏で最新を取得して置き換え）
   try{
     const ci = JSON.parse(localStorage.getItem('fd_inbox')||'null');
-    if(ci && ci.length){ INBOX = ci; INBOX._loaded = true; renderInbox(); }
+    if(ci && ci.length){ INBOX = applyPendingStatus(ci); INBOX._loaded = true; renderInbox(); schedulePrefetch(); }
     const cs = JSON.parse(localStorage.getItem('fd_sent')||'null');
     if(cs && cs.length){ SENT = cs; SENT._loaded = true; }
   }catch(_){}
@@ -1530,7 +1553,8 @@ async function boot(){
   loadInbox();
   loadSent();
   if(!window._auto){
-    window._auto = setInterval(()=>{ if(!document.hidden){ loadInbox(); loadSent(); } }, 180000);
+    // 90秒ごとに自動更新（未処理の先読みも都度走る）
+    window._auto = setInterval(()=>{ if(!document.hidden){ loadInbox(); loadSent(); } }, 90000);
     document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ loadInbox(); loadSent(); } });
   }
 }
