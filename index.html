@@ -542,15 +542,21 @@ let thumbRunning = 0;
 
 /* 端末永続キャッシュ（IndexedDB）— サムネ＋FAX本体。2回目以降・再読込後も瞬時に表示 */
 let IDB = null;
-(function(){
+function openIDB(){
   try{
     const q = indexedDB.open('faxdesk', 2);
     q.onupgradeneeded = ()=>{ const db=q.result;
       if(!db.objectStoreNames.contains('thumbs')) db.createObjectStore('thumbs');
       if(!db.objectStoreNames.contains('files')) db.createObjectStore('files'); };
-    q.onsuccess = ()=>{ IDB = q.result; };
-  }catch(_){}
-})();
+    q.onsuccess = ()=>{ IDB = q.result;
+      // 他タブがDB更新を要求したら接続を閉じてブロックを防ぐ
+      IDB.onversionchange = ()=>{ try{ IDB.close(); }catch(_){} IDB=null; };
+    };
+    q.onblocked = ()=>{ /* 他タブが旧バージョンを掴んでいる。閉じられれば自動で開く */ };
+    q.onerror = ()=>{ IDB=null; };
+  }catch(_){ IDB=null; }
+}
+openIDB();
 function idbGet(store, id){ return new Promise(res=>{ if(!IDB) return res(null);
   try{ const t=IDB.transaction(store).objectStore(store).get(id); t.onsuccess=()=>res(t.result||null); t.onerror=()=>res(null); }catch(_){ res(null); } }); }
 function idbSet(store, id, val){ if(!IDB) return; try{ IDB.transaction(store,'readwrite').objectStore(store).put(val, id); }catch(_){} }
