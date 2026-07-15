@@ -1545,7 +1545,11 @@ async function loadSent(){
     else toast('履歴の取得に失敗: ' + (r.error||''));
   }catch(err){ /* キャッシュ維持 */ }
 }
-$('#btn-refresh').onclick = ()=>{ toast('最新を取得中…'); loadInbox(); loadSent(); };
+$('#btn-refresh').onclick = async ()=>{
+  const b=$('#btn-refresh'); const orig=b.innerHTML; b.disabled=true; b.innerHTML='<span class="spin dark"></span>更新中';
+  try{ await Promise.all([loadInbox(), loadSent()]); toast('最新に更新しました'); }
+  finally{ b.disabled=false; b.innerHTML=orig; }
+};
 
 async function boot(){
   loadPending();
