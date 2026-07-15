@@ -544,17 +544,18 @@ let thumbRunning = 0;
 let IDB = null;
 function openIDB(){
   try{
-    const q = indexedDB.open('faxdesk', 2);
+    // 新DB名＋version1で両ストアを作成（旧'faxdesk'のv1→v2アップグレード詰まりを回避）
+    const q = indexedDB.open('faxdesk2', 1);
     q.onupgradeneeded = ()=>{ const db=q.result;
       if(!db.objectStoreNames.contains('thumbs')) db.createObjectStore('thumbs');
       if(!db.objectStoreNames.contains('files')) db.createObjectStore('files'); };
     q.onsuccess = ()=>{ IDB = q.result;
-      // 他タブがDB更新を要求したら接続を閉じてブロックを防ぐ
       IDB.onversionchange = ()=>{ try{ IDB.close(); }catch(_){} IDB=null; };
     };
-    q.onblocked = ()=>{ /* 他タブが旧バージョンを掴んでいる。閉じられれば自動で開く */ };
     q.onerror = ()=>{ IDB=null; };
   }catch(_){ IDB=null; }
+  // 旧DBは掃除（存在すれば破棄・失敗は無視）
+  try{ indexedDB.deleteDatabase('faxdesk'); }catch(_){}
 }
 openIDB();
 function idbGet(store, id){ return new Promise(res=>{ if(!IDB) return res(null);
