@@ -307,6 +307,10 @@ textarea{resize:vertical; min-height:130px}
             <div id="c-selected" style="margin-top:8px" class="hidden">
               <span class="chip"><span id="c-name"></span><span id="c-num" style="font-weight:400"></span><span class="x" id="c-clear">✕</span></span>
             </div>
+            <label id="s-mailwrap" class="hidden" style="display:flex; align-items:center; gap:8px; margin-top:8px; font-size:13.5px; cursor:pointer">
+              <input type="checkbox" id="s-alsomail" style="width:17px;height:17px;accent-color:var(--blue)">
+              📧 メールでも同時に送る（<span id="s-mailaddr" style="color:var(--sub)"></span>）
+            </label>
             <label class="lbl">または FAX番号を直接入力</label>
             <input class="txt" id="s-manual" placeholder="例: 0538-42-1138" inputmode="tel">
             <div class="dest-preview" id="dest-preview"></div>
@@ -314,6 +318,11 @@ textarea{resize:vertical; min-height:130px}
 
           <!-- 一括宛先 -->
           <div id="dest-bulk" class="hidden">
+            <div class="row" style="justify-content:space-between">
+              <label class="lbl" style="margin:0">📌 定型（宛先＋文面をワンタップでセット）</label>
+              <button class="abtn" id="preset-save">＋今の内容を定型に保存</button>
+            </div>
+            <div class="gchips" id="preset-chips" style="margin-top:6px; margin-bottom:12px"><span class="hint">（まだ定型がありません。ジャンル・件名・本文を作って保存すると次からワンタップです）</span></div>
             <div class="row" style="justify-content:space-between">
               <label class="lbl" style="margin:0">ジャンルを選ぶ → 宛先を確認</label>
               <button class="abtn" id="btn-genre-mng">👥 取引先管理</button>
@@ -327,6 +336,10 @@ textarea{resize:vertical; min-height:130px}
               </span>
             </div>
             <div class="targets" id="target-list"><div class="empty">ジャンルを選択してください</div></div>
+            <label style="display:flex; align-items:center; gap:8px; margin-top:10px; font-size:13.5px; cursor:pointer">
+              <input type="checkbox" id="b-alsomail" style="width:17px;height:17px;accent-color:var(--blue)">
+              📧 メールがある宛先には同時にメールも送る（対象 <span id="b-mailcount">0</span> 件）
+            </label>
           </div>
 
           <label class="lbl">件名（送付状のタイトルになります）</label>
@@ -865,9 +878,13 @@ function selectContact(c){
   $('#c-num').textContent = '｜' + c.num;
   $('#c-search').value = ''; $('#c-list').style.display='none';
   $('#s-manual').value = '';
+  // メールがある取引先なら「メールでも送る」を表示
+  const mw = $('#s-mailwrap');
+  if(c.email){ mw.classList.remove('hidden'); $('#s-mailaddr').textContent = c.email; $('#s-alsomail').checked = false; }
+  else mw.classList.add('hidden');
   updateDestPreview();
 }
-$('#c-clear').onclick = ()=>{ selContact=null; $('#c-selected').classList.add('hidden'); updateDestPreview(); };
+$('#c-clear').onclick = ()=>{ selContact=null; $('#c-selected').classList.add('hidden'); $('#s-mailwrap').classList.add('hidden'); updateDestPreview(); };
 $('#c-search').addEventListener('input', e=>renderComboList(e.target.value));
 $('#c-search').addEventListener('focus', e=>renderComboList(e.target.value));
 document.addEventListener('click', e=>{ if(!$('#combo').contains(e.target)) $('#c-list').style.display='none'; });
@@ -952,19 +969,64 @@ function renderGenreChips(){
 }
 function renderTargets(){
   const list = $('#target-list');
-  if(!bulkGenre){ list.innerHTML = '<div class="empty">ジャンルを選択してください</div>'; $('#bulk-count').textContent='宛先 0件'; return; }
+  if(!bulkGenre){ list.innerHTML = '<div class="empty">ジャンルを選択してください</div>'; $('#bulk-count').textContent='宛先 0件'; updateBulkCount(); return; }
   const targets = CONTACTS.filter(c=>(c.genre||'未設定')===bulkGenre);
   list.innerHTML = targets.map(c=>`
     <label class="trow"><input type="checkbox" data-n="${esc(c.num81)}" ${bulkChecked.has(c.num81)?'checked':''}>
-      <span>${esc(c.name)}</span><span class="num">${esc(c.num)}</span></label>`).join('');
+      <span>${esc(c.name)}${c.email?' <span title="メールあり">📧</span>':''}</span><span class="num">${esc(c.num)}</span></label>`).join('');
   list.querySelectorAll('input').forEach(el=>{
     el.onchange = ()=>{ el.checked ? bulkChecked.add(el.dataset.n) : bulkChecked.delete(el.dataset.n); updateBulkCount(); };
   });
   updateBulkCount();
 }
-function updateBulkCount(){ $('#bulk-count').textContent = `宛先 ${bulkChecked.size}件`; renderCover(); }
+function bulkMailCount(){ return CONTACTS.filter(c=>bulkChecked.has(c.num81) && c.email).length; }
+function updateBulkCount(){
+  $('#bulk-count').textContent = `宛先 ${bulkChecked.size}件`;
+  const mc = $('#b-mailcount'); if(mc) mc.textContent = bulkMailCount();
+  renderCover();
+}
 $('#bulk-all').onclick = ()=>{ if(!bulkGenre) return; bulkChecked = new Set(CONTACTS.filter(c=>(c.genre||'未設定')===bulkGenre).map(c=>c.num81)); renderTargets(); };
 $('#bulk-none').onclick = ()=>{ bulkChecked.clear(); renderTargets(); };
+
+/* ==== 定型（まとめて送信プリセット） ==== */
+let PRESETS = [];
+async function loadPresets(){
+  try{ const r = await apiGet('presets'); if(r.ok){ PRESETS = r.presets||[]; renderPresetChips(); } }catch(_){}
+}
+function renderPresetChips(){
+  const wrap = $('#preset-chips'); if(!wrap) return;
+  if(!PRESETS.length){ wrap.innerHTML = '<span class="hint">（まだ定型がありません。ジャンル・件名・本文を作って保存すると次からワンタップです）</span>'; return; }
+  wrap.innerHTML = PRESETS.map(p=>`<span class="gchip" data-id="${esc(p.id)}" title="${esc(p.subject||'')}">📌 ${esc(p.name)} <span data-del="${esc(p.id)}" style="margin-left:4px; opacity:.6">✕</span></span>`).join('');
+  wrap.querySelectorAll('.gchip').forEach(el=>{
+    el.onclick = async e=>{
+      if(e.target.dataset.del){
+        if(!confirm('定型「'+(PRESETS.find(p=>p.id===e.target.dataset.del)||{}).name+'」を削除しますか？')) return;
+        const r = await apiPost({action:'delpreset', id:e.target.dataset.del});
+        if(r.ok){ PRESETS = r.presets||[]; renderPresetChips(); toast('削除しました'); }
+        return;
+      }
+      const p = PRESETS.find(x=>x.id===el.dataset.id); if(!p) return;
+      applyPreset(p);
+    };
+  });
+}
+function applyPreset(p){
+  bulkGenre = p.genre || '';
+  bulkChecked = new Set(CONTACTS.filter(c=>(c.genre||'未設定')===bulkGenre).map(c=>c.num81));
+  renderGenreChips();
+  $('#s-subject').value = p.subject || '';
+  $('#s-body').value = p.body || '';
+  renderCover();
+  toast(`📌「${p.name}」をセットしました（${bulkGenre} ${bulkChecked.size}件）`);
+}
+$('#preset-save').onclick = async ()=>{
+  if(!bulkGenre){ toast('まずジャンルを選んでください'); return; }
+  const name = prompt('定型の名前を入力してください（例: 市場一括通知）', bulkGenre + '一括');
+  if(name==null || !name.trim()) return;
+  const r = await apiPost({action:'savepreset', name:name.trim(), genre:bulkGenre, subject:$('#s-subject').value.trim(), body:stripSig($('#s-body').value)});
+  if(r.ok){ PRESETS = r.presets||[]; renderPresetChips(); toast('定型を保存しました: '+name.trim()); }
+  else toast(r.error||'保存に失敗しました');
+};
 
 /* ==== ジャンル管理 ==== */
 $('#btn-genre-mng').onclick = ()=>{ renderGenreList(''); $('#genre-ov').classList.add('show'); };
@@ -981,6 +1043,7 @@ function renderGenreList(q){
         ${GENRES.map(g=>`<option ${c.genre===g?'selected':''}>${g}</option>`).join('')}
         ${c.genre && !GENRES.includes(c.genre) ? `<option selected>${esc(c.genre)}</option>` : ''}
       </select>
+      <button class="abtn" data-act="mail" data-n="${esc(c.num81)}" title="メールアドレス設定" style="${c.email?'':'opacity:.45'}">📧</button>
       <button class="abtn" data-act="edit" data-n="${esc(c.num81)}" title="名前を変更">✏️</button>
       <button class="abtn" data-act="del" data-n="${esc(c.num81)}" title="削除" style="color:var(--red)">🗑</button>
     </div>`).join('') || '<div class="empty">該当なし</div>';
@@ -991,6 +1054,16 @@ function renderGenreList(q){
       const r = await apiPost({action:'genre', num:c.num81, genre:el.value});
       if(r.ok) toast(`${c.name} → ${el.value||'未設定'}`);
       else { c.genre = old; toast('保存に失敗しました'); renderGenreList(q); }
+    };
+  });
+  $('#gm-list').querySelectorAll('[data-act="mail"]').forEach(el=>{
+    el.onclick = async ()=>{
+      const c = CONTACTS.find(x=>x.num81===el.dataset.n); if(!c) return;
+      const mail = prompt(`${c.name} のメールアドレス（複数はカンマ区切り／空にすると解除）`, c.email||'');
+      if(mail==null) return;
+      const r = await apiPost({action:'editcontact', num:c.num81, email:mail.trim()});
+      if(r.ok){ c.email = mail.trim(); toast(mail.trim()?'メールを設定しました':'メールを解除しました'); renderGenreList(q); }
+      else toast(r.error||'保存に失敗しました');
     };
   });
   $('#gm-list').querySelectorAll('[data-act="edit"]').forEach(el=>{
@@ -1129,7 +1202,10 @@ $('#btn-send').onclick = ()=>{
   const hasCover = !!($('#s-subject').value.trim() || stripSig($('#s-body').value));
   $('#cf-subject').textContent = $('#s-subject').value.trim() || (hasCover ? '（件名なし）' : '（送付状なし・添付原稿のみ）');
   $('#cf-body').textContent = stripSig($('#s-body').value) || (hasCover ? '（本文なし）' : '－');
-  $('#cf-files').textContent = (hasCover ? ['📄FAX送付状'] : []).concat(attach.map(f=>f.name)).join(' / ') || 'なし';
+  let mailNote = '';
+  if(sendMode==='single' && selContact && selContact.email && $('#s-alsomail').checked) mailNote = `　＋📧 ${selContact.email} にもメール送信`;
+  if(sendMode==='bulk' && $('#b-alsomail').checked && bulkMailCount()>0) mailNote = `　＋📧 ${bulkMailCount()}件にメール併送`;
+  $('#cf-files').textContent = ((hasCover ? ['📄FAX送付状'] : []).concat(attach.map(f=>f.name)).join(' / ') || 'なし') + mailNote;
   $('#confirm-ov').classList.add('show');
 };
 $('#cf-cancel').onclick = ()=>$('#confirm-ov').classList.remove('show');
@@ -1142,10 +1218,11 @@ $('#cf-ok').onclick = async ()=>{
     let r;
     if(sendMode==='single'){
       const n = destNumber();
-      r = await apiPost({action:'send', to:n, vendor:selContact?selContact.name:'', subject:$('#s-subject').value.trim(), body:stripSig($('#s-body').value), files});
+      const mailTo = (selContact && selContact.email && $('#s-alsomail').checked) ? selContact.email : '';
+      r = await apiPost({action:'send', to:n, vendor:selContact?selContact.name:'', subject:$('#s-subject').value.trim(), body:stripSig($('#s-body').value), files, mailTo});
     } else {
-      const targets = CONTACTS.filter(c=>bulkChecked.has(c.num81)).map(c=>({num:c.num81, name:c.name}));
-      r = await apiPost({action:'sendbulk', targets, subject:$('#s-subject').value.trim(), body:stripSig($('#s-body').value), files});
+      const targets = CONTACTS.filter(c=>bulkChecked.has(c.num81)).map(c=>({num:c.num81, name:c.name, email:c.email||''}));
+      r = await apiPost({action:'sendbulk', targets, subject:$('#s-subject').value.trim(), body:stripSig($('#s-body').value), files, alsoMail: $('#b-alsomail').checked});
     }
     if(r.ok){
       $('#confirm-ov').classList.remove('show');
@@ -1160,6 +1237,7 @@ $('#cf-ok').onclick = async ()=>{
 };
 function clearForm(){
   selContact = null; $('#c-selected').classList.add('hidden');
+  $('#s-mailwrap').classList.add('hidden'); $('#s-alsomail').checked=false; $('#b-alsomail').checked=false;
   $('#s-manual').value=''; $('#s-subject').value=''; $('#s-body').value='';
   attach = []; renderFiles(); updateDestPreview();
   bulkChecked.clear(); if(sendMode==='bulk') renderTargets();
@@ -1627,6 +1705,7 @@ async function boot(){
   if(!CONTACTS.length){ const c = await apiGet('contacts').catch(()=>null); if(c && c.ok) CONTACTS = c.contacts; }
   loadInbox();
   loadSent();
+  loadPresets();
   if(!window._auto){
     // 90秒ごとに自動更新（未処理の先読みも都度走る）
     window._auto = setInterval(()=>{ if(!document.hidden){ loadInbox(); loadSent(); } }, 90000);
