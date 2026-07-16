@@ -396,6 +396,7 @@ textarea{resize:vertical; min-height:130px}
     <span class="ed-ttl" id="ed-title">FAXを編集</span>
     <button class="ed-tool" id="ed-tool-text">🅣 文字を追加</button>
     <button class="ed-tool" id="ed-tool-stamp">🖋 印鑑</button>
+    <button class="ed-tool ghost" id="ed-rotate">🔄 回転</button>
     <button class="ed-tool ghost" id="ed-undo">↩︎ 元に戻す</button>
     <span class="ed-hint" id="ed-status"></span>
     <span class="ed-sp"></span>
@@ -591,6 +592,41 @@ function pumpPrefetch(){
   }
 }
 function b64ToBytes(b64){ const bin = atob(b64); const u = new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; }
+/* FAXごとの回転角(0/90/180/270)を記憶 */
+const faxRot = (()=>{ try{ return JSON.parse(localStorage.getItem('fd_rot')||'{}'); }catch(_){ return {}; } })();
+function getRot(id){ return faxRot[id]||0; }
+function setRot(id, deg){ faxRot[id]=((deg%360)+360)%360; try{ localStorage.setItem('fd_rot', JSON.stringify(faxRot)); }catch(_){} }
+// 画像を回転してcanvasへ（backing幅=targetW）
+function drawRotatedImg(cv, img, rot, targetW){
+  rot=((rot%360)+360)%360; const swap=(rot===90||rot===270);
+  const iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
+  const dispW = swap? ih: iw; const scale=targetW/dispW;
+  cv.width=Math.round((swap?ih:iw)*scale); cv.height=Math.round((swap?iw:ih)*scale);
+  const ctx=cv.getContext('2d'); ctx.save(); ctx.translate(cv.width/2, cv.height/2); ctx.rotate(rot*Math.PI/180);
+  ctx.drawImage(img, -iw*scale/2, -ih*scale/2, iw*scale, ih*scale); ctx.restore();
+}
+// files を回転付きでcanvas描画（container/または各canvasを生成して返す）
+async function renderFaxCanvases(files, cssWidth, rot, onCanvas, abort){
+  const dpr=Math.min(2, window.devicePixelRatio||1); const targetW=cssWidth*dpr;
+  for(const f of files){
+    if(abort && abort()) return;
+    if(/^image\//.test(f.mime)){
+      const img=await loadImg(`data:${f.mime};base64,${f.data}`);
+      const cv=document.createElement('canvas'); drawRotatedImg(cv, img, rot, targetW); cv.style.width='100%';
+      onCanvas(cv);
+    } else {
+      const bytes=b64ToBytes(f.data); const pdf=await pdfjsLib.getDocument({data:bytes.slice()}).promise;
+      for(let p=1;p<=pdf.numPages;p++){
+        if(abort && abort()) return;
+        const page=await pdf.getPage(p); const vp1=page.getViewport({scale:1, rotation:rot});
+        const vp=page.getViewport({scale: targetW/vp1.width, rotation:rot});
+        const cv=document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height; cv.style.width='100%';
+        onCanvas(cv);
+        await page.render({canvasContext:cv.getContext('2d'), viewport:vp, intent:'print'}).promise;
+      }
+    }
+  }
+}
 async function renderPdfPage(bytes, canvas, targetWidth, pageNo=1){
   const pdf = await pdfjsLib.getDocument({data: bytes.slice()}).promise;
   const page = await pdf.getPage(pageNo);
@@ -1203,6 +1239,7 @@ async function selectInbox(item){
     <div class="ip-bar">
       <span class="ttl">${esc(item.vendor || '不明 '+fmtNum(item.faxNum))}</span>
       <select id="ip-status">${INBOX_STATUSES.map(s=>`<option ${s===item.status?'selected':''}>${s}</option>`).join('')}</select>
+      <button class="abtn" id="ip-rot" title="90度回転">🔄 回転</button>
       <button class="abtn primary" id="ip-edit">✏️ 編集して返信</button>
       <button class="abtn" id="ip-reply">↩️ 返信</button>
       <button class="abtn" id="ip-dl">⬇️</button>
@@ -1223,29 +1260,17 @@ async function selectInbox(item){
   $('#ip-reply').onclick = ()=>prefillReply(item);
   $('#ip-edit').onclick = ()=>openEditor(item);
   $('#ip-dl').onclick = ()=>downloadFax(item.msgId, item.vendor||item.faxNum);
-  const body = $('#ip-body');
+  $('#ip-rot').onclick = ()=>{ setRot(item.msgId, getRot(item.msgId)+90); drawInboxPreview(item); };
+  drawInboxPreview(item);
+}
+async function drawInboxPreview(item){
+  const body = $('#ip-body'); if(!body) return;
+  body.innerHTML = '<div class="ip-empty"><span class="spin dark"></span> 読み込み中…</div>';
   try{
     const files = await getFaxFiles(item.msgId);
     if(selInboxId!==item.msgId) return;
     body.innerHTML = '';
-    const w = 620 * Math.min(2, window.devicePixelRatio||1);
-    for(const f of files){
-      if(/^image\//.test(f.mime)){
-        const img = document.createElement('img'); img.src = `data:${f.mime};base64,${f.data}`; body.appendChild(img);
-      } else {
-        const bytes = b64ToBytes(f.data);
-        const pdf = await pdfjsLib.getDocument({data: bytes.slice()}).promise;
-        for(let p=1; p<=pdf.numPages; p++){
-          const page = await pdf.getPage(p);
-          const vp1 = page.getViewport({scale:1});
-          const vp = page.getViewport({scale: w/vp1.width});
-          const cv = document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height;
-          body.appendChild(cv);
-          await page.render({canvasContext: cv.getContext('2d'), viewport: vp, intent:'print'}).promise;
-          if(selInboxId!==item.msgId) return;
-        }
-      }
-    }
+    await renderFaxCanvases(files, 620, getRot(item.msgId), cv=>body.appendChild(cv), ()=>selInboxId!==item.msgId);
   }catch(err){ body.innerHTML = `<div class="ip-empty">読み込みに失敗しました<br>${esc(err.message||err)}</div>`; }
 }
 
@@ -1286,34 +1311,43 @@ function edGetStamps(){ try{ return JSON.parse(localStorage.getItem('fd_stamps')
 function edSetStamps(a){ try{ localStorage.setItem('fd_stamps', JSON.stringify(a)); }catch(_){ toast('印鑑の保存に失敗（容量超過かも）'); } }
 
 async function openEditor(item){
-  edState = { item, pages: [], tool:null, stamp:null, history:[] };
+  edState = { item, files:null, pages: [], tool:null, stamp:null, history:[], rot:getRot(item.msgId) };
   $('#ed-title').textContent = `編集：${item.vendor || fmtNum(item.faxNum)}`;
   $('#ed-pages').innerHTML = `<div class="ed-hint" style="text-align:center;padding:40px"><span class="spin"></span> 読み込み中…</div>`;
   $('#ed-stamps').classList.add('hidden');
   setEdTool(null);
   $('#editor').classList.add('show'); document.body.style.overflow='hidden';
   try{
-    const files = await getFaxFiles(item.msgId);
-    $('#ed-pages').innerHTML='';
-    const DISP=720, DPR=Math.min(2, window.devicePixelRatio||1);
-    for(const f of files){
-      if(/^image\//.test(f.mime)){
-        const img = await loadImg(`data:${f.mime};base64,${f.data}`);
-        const cv = addEdPage(DISP, Math.round(DISP*img.height/img.width), DPR);
-        cv.getContext('2d').drawImage(img, 0,0, cv.width, cv.height);
-      } else {
-        const bytes=b64ToBytes(f.data);
-        const pdf=await pdfjsLib.getDocument({data:bytes.slice()}).promise;
-        for(let p=1;p<=pdf.numPages;p++){
-          const page=await pdf.getPage(p); const vp1=page.getViewport({scale:1});
-          const cv=addEdPage(DISP, Math.round(DISP*vp1.height/vp1.width), DPR);
-          const vp=page.getViewport({scale: cv.width/vp1.width});
-          await page.render({canvasContext:cv.getContext('2d'),viewport:vp,intent:'print'}).promise;
-        }
-      }
-    }
+    edState.files = await getFaxFiles(item.msgId);
+    await renderEditorPages();
     renderStampPalette();
   }catch(err){ $('#ed-pages').innerHTML=`<div class="ed-hint" style="text-align:center;padding:40px">読み込み失敗: ${esc(err.message||err)}</div>`; }
+}
+async function renderEditorPages(){
+  const files=edState.files, rot=edState.rot;
+  $('#ed-pages').innerHTML=''; edState.pages=[]; edState.history=[];
+  const DISP=720, DPR=Math.min(2, window.devicePixelRatio||1);
+  for(const f of files){
+    if(/^image\//.test(f.mime)){
+      const img=await loadImg(`data:${f.mime};base64,${f.data}`);
+      const swap=(rot%180!==0); const iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
+      const cv=addEdPage(DISP, Math.round(DISP*(swap?iw:ih)/(swap?ih:iw)), DPR);
+      drawRotatedImg(cv, img, rot, cv.width);
+    } else {
+      const bytes=b64ToBytes(f.data); const pdf=await pdfjsLib.getDocument({data:bytes.slice()}).promise;
+      for(let p=1;p<=pdf.numPages;p++){
+        const page=await pdf.getPage(p); const vp1=page.getViewport({scale:1, rotation:rot});
+        const cv=addEdPage(DISP, Math.round(DISP*vp1.height/vp1.width), DPR);
+        const vp=page.getViewport({scale: cv.width/vp1.width, rotation:rot});
+        await page.render({canvasContext:cv.getContext('2d'),viewport:vp,intent:'print'}).promise;
+      }
+    }
+  }
+}
+async function rotateEditor(){
+  if(document.querySelectorAll('.ed-obj').length && !confirm('回転すると配置済みの文字・印鑑は消えます。回転しますか？')) return;
+  edState.rot=((edState.rot+90)%360); setRot(edState.item.msgId, edState.rot); setEdTool(null);
+  await renderEditorPages();
 }
 function addEdPage(dispW, dispH, dpr){
   const pageEl=document.createElement('div'); pageEl.className='ed-page';
@@ -1440,6 +1474,7 @@ $('#ed-tool-stamp').onclick=()=>{
   const show=$('#ed-stamps').classList.toggle('hidden')===false;
   if(show && !edGetStamps().length){ toast('まず「＋印鑑を追加」で会社印の画像を登録してください', 3500); }
 };
+$('#ed-rotate').onclick=rotateEditor;
 $('#ed-undo').onclick=()=>{ const o=edState.history.pop(); if(o) o.remove(); };
 $('#ed-cancel').onclick=closeEditor;
 $('#ed-done').onclick=exportEditor;
