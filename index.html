@@ -154,6 +154,14 @@ textarea{resize:vertical; min-height:130px}
 .v-note{color:#b9c4d4; text-align:center; padding:30px 10px; font-size:14px}
 .v-detail{background:#fff; border-radius:10px; padding:18px; font-size:14px}
 .v-detail .kv{margin-bottom:0}
+/* eFax自動送付状の再現表示（他経路送信の1枚目） */
+.efax-cover{background:#fff; border-radius:6px; box-shadow:0 4px 20px rgba(0,0,0,.4); aspect-ratio:210/297;
+  padding:7% 8%; color:#111; font-size:14.5px; overflow:hidden; display:flex; flex-direction:column; gap:10px}
+.efax-cover .ec-line{border-bottom:2px solid #111; padding-bottom:4px; display:flex; gap:20px; align-items:baseline}
+.efax-cover .ec-line b{min-width:64px; font-weight:700; flex-shrink:0}
+.efax-cover .ec-msg{font-size:21px; font-weight:800; letter-spacing:6px; border-bottom:2px solid #111; padding:10px 0 8px; margin-bottom:6px}
+.efax-cover .ec-body{white-space:pre-wrap; word-break:break-word; flex:1; min-height:0; overflow:hidden; line-height:1.9}
+.efax-cover .ec-tag{color:#999; font-size:11px; text-align:right; flex-shrink:0}
 .v-foot{background:#101825; padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
 .v-foot-in{max-width:880px; margin:0 auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap}
 .v-foot select{width:auto; padding:7px 10px; font-size:13px; border-radius:8px}
@@ -564,16 +572,22 @@ function idbGet(store, id){ return new Promise(res=>{ if(!IDB) return res(null);
 function idbSet(store, id, val){ if(!IDB) return; try{ IDB.transaction(store,'readwrite').objectStore(store).put(val, id); }catch(_){} }
 function thumbGet(id){ return idbGet('thumbs', id); }
 function thumbSet(id, dataUrl){ idbSet('thumbs', id, dataUrl); }
-async function getFaxFiles(id){
-  if(pdfCache.has(id)) return pdfCache.get(id);
-  const cached = await idbGet('files', id);
-  if(cached){ pdfCache.set(id, cached); return cached; }
-  const r = await apiGet('pdf', {id});
-  if(!r.ok) throw new Error(r.error||'取得失敗');
-  pdfCache.set(id, r.files);
-  idbSet('files', id, r.files);
-  return r.files;
+async function getFaxMsg(id, needBody){
+  let v = pdfCache.get(id);
+  if(!v){
+    const c = await idbGet('files', id);
+    if(c) v = Array.isArray(c) ? {files:c, legacy:true} : c;   // 旧形式(配列)＝本文なし
+    if(v) pdfCache.set(id, v);
+  }
+  if(!v || (needBody && v.legacy)){
+    const r = await apiGet('pdf', {id});
+    if(!r.ok){ if(v) return v; throw new Error(r.error||'取得失敗'); }
+    v = {files: r.files||[], body: r.body||'', subject: r.subject||''};
+    pdfCache.set(id, v); idbSet('files', id, v);
+  }
+  return v;
 }
+async function getFaxFiles(id){ return (await getFaxMsg(id)).files; }
 /* 未処理を優先して裏で先読み（開く前に取得済みにする） */
 const prefetchQueue = [];
 let prefetchRunning = 0;
@@ -727,9 +741,24 @@ function openViewer(kind, item){
   }
   (async ()=>{
     try{
-      const files = await getFaxFiles(id);
+      const v = await getFaxMsg(id, kind==='sent');
+      const files = v.files || [];
       if(!viewerCtx || viewerCtx.item!==item) return;
       pages.innerHTML = '';
+      // 他経路送信（件名/本文→eFax自動送付状）は、実際に送られた送付状を1枚目として再現表示
+      if(kind==='sent'){
+        const b = String(v.body||'').trim();
+        if(b && b.indexOf('{nocoverpage}')<0){
+          const cover = document.createElement('div'); cover.className='efax-cover';
+          cover.innerHTML = `
+            <div class="ec-line"><b>送信日</b><span>${esc(fmtDate(item.date))}</span></div>
+            <div class="ec-line"><b>件名</b><span>${esc(item.subject || v.subject || '')}</span></div>
+            <div class="ec-msg">メッセージ</div>
+            <div class="ec-body">${esc(b)}</div>
+            <div class="ec-tag">※ eFaxが自動生成した送付状（1枚目）の再現表示</div>`;
+          pages.appendChild(cover);
+        }
+      }
       const w = Math.min(880, window.innerWidth - 32) * Math.min(2, window.devicePixelRatio||1);
       for(const f of files){
         if(/^image\//.test(f.mime)){
