@@ -78,6 +78,17 @@ textarea{resize:vertical; min-height:130px}
 .chip .x{cursor:pointer; color:var(--sub); font-weight:400}
 .dest-preview{font-size:13px; color:var(--sub); margin-top:6px}
 .dest-preview b{color:var(--ink)}
+/* 宛先リスト（常時表示・あいうえお順） */
+.clist{border:1px solid var(--line); border-radius:10px; max-height:340px; overflow-y:auto; margin-top:8px; background:#fff}
+.chead{position:sticky; top:0; background:var(--gray-soft); color:var(--sub); font-size:11.5px; font-weight:800; padding:4px 12px; z-index:1}
+.crow{display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--line); cursor:pointer}
+.crow:last-child{border-bottom:none}
+.crow:hover{background:var(--blue-soft)}
+.crow.sel{background:var(--blue-soft); box-shadow:inset 3px 0 0 var(--blue)}
+.crow .cn{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; font-size:14px}
+.crow .cg{font-size:11px; color:var(--sub); border:1px solid var(--line); border-radius:999px; padding:1px 8px; flex-shrink:0}
+.crow .cm{font-size:12px; flex-shrink:0}
+.clist-empty{padding:24px 12px; text-align:center; color:var(--sub); font-size:13px}
 /* 一括送信 */
 .gchips{display:flex; gap:6px; flex-wrap:wrap}
 .gchip{border:1px solid var(--line); background:#fff; border-radius:999px; padding:6px 15px; font-size:13.5px; cursor:pointer; color:var(--sub); font-weight:700}
@@ -299,12 +310,13 @@ textarea{resize:vertical; min-height:130px}
         <div class="card">
           <!-- 個別宛先 -->
           <div id="dest-single">
-            <label class="lbl">宛先（取引先から選ぶ）</label>
-            <div class="gchips" id="single-cat-chips" style="margin-bottom:8px"></div>
-            <div class="combo" id="combo">
-              <input class="txt" id="c-search" placeholder="取引先名で検索…（例: ナイス）" autocomplete="off">
-              <div class="combo-list" id="c-list"></div>
+            <div class="row" style="justify-content:space-between; align-items:center">
+              <label class="lbl" style="margin:0">宛先（取引先から選ぶ）</label>
+              <button class="abtn" id="single-mng">👥 取引先管理</button>
             </div>
+            <div class="gchips" id="single-cat-chips" style="margin:8px 0"></div>
+            <input class="txt" id="c-search" placeholder="🔍 取引先名で絞り込み…" autocomplete="off">
+            <div class="clist" id="c-list"></div>
             <div id="c-selected" style="margin-top:8px" class="hidden">
               <span class="chip"><span id="c-name"></span><span id="c-num" style="font-weight:400"></span><span class="x" id="c-clear">✕</span></span>
             </div>
@@ -856,57 +868,76 @@ document.querySelectorAll('.seg div').forEach(el=>{
     document.querySelectorAll('.seg div').forEach(x=>x.classList.toggle('on', x===el));
     $('#dest-single').classList.toggle('hidden', sendMode!=='single');
     $('#dest-bulk').classList.toggle('hidden', sendMode!=='bulk');
-    if(sendMode==='bulk') renderGenreChips();
+    if(sendMode==='bulk') renderGenreChips(); else renderSingleCatChips();
     renderCover();
   };
 });
 
-/* ==== 取引先コンボ（個別） ==== */
+/* ==== 取引先リスト（個別・常時表示・あいうえお順） ==== */
 let singleCat = '';
+// 会社種別プレフィックスを外した並べ替えキー
+function sortKey(name){
+  return String(name||'').replace(/^[（(]?\s*(株式会社|有限会社|合同会社|合資会社|株|有|合)\s*[）)]?\s*/,'').trim() || String(name||'');
+}
+// 先頭文字→あいうえお行の見出し
+function kanaRow(name){
+  let c = sortKey(name)[0] || '';
+  c = c.replace(/[ァ-ヶ]/, m=>String.fromCharCode(m.charCodeAt(0)-0x60)); // カタカナ→ひらがな
+  const rows = [['あ','あぁいぃうぅえぇおぉ'],['か','かがきぎくぐけげこご'],['さ','さざしじすずせぜそぞ'],['た','ただちぢつづってでとど'],['な','なにぬねの'],['は','はばぱひびぴふぶぷへべぺほぼぽ'],['ま','まみむめも'],['や','やゃゆゅよょ'],['ら','らりるれろ'],['わ','わをん']];
+  for(const [head, set] of rows){ if(set.includes(c)) return head; }
+  if(/[A-Za-z0-9]/.test(c)) return 'A-Z';
+  return '漢字・その他';
+}
+const KANA_ORDER = ['あ','か','さ','た','な','は','ま','や','ら','わ','A-Z','漢字・その他'];
 function renderSingleCatChips(){
   const wrap = $('#single-cat-chips'); if(!wrap) return;
   const counts = {}; CONTACTS.forEach(c=>{ const g=c.genre||'その他'; counts[g]=(counts[g]||0)+1; });
-  wrap.innerHTML = `<span class="gchip ${singleCat===''?'on':''}" data-g="">すべて</span>` +
+  wrap.innerHTML = `<span class="gchip ${singleCat===''?'on':''}" data-g="">すべて ${CONTACTS.length}</span>` +
     GENRES.map(g=>`<span class="gchip ${singleCat===g?'on':''}" data-g="${esc(g)}">${esc(g)} ${counts[g]||0}</span>`).join('');
   wrap.querySelectorAll('.gchip').forEach(el=>{
-    el.onclick = ()=>{ singleCat = el.dataset.g; renderSingleCatChips();
-      renderComboList($('#c-search').value); $('#c-list').style.display='block'; $('#c-search').focus(); };
+    el.onclick = ()=>{ singleCat = el.dataset.g; renderSingleCatChips(); renderContactList($('#c-search').value); };
   });
+  renderContactList($('#c-search') ? $('#c-search').value : '');
 }
-function renderComboList(q){
-  const list = $('#c-list');
+function renderContactList(q){
+  const list = $('#c-list'); if(!list) return;
   q = (q||'').trim().toLowerCase();
-  const hits = CONTACTS.filter(c => (!singleCat || (c.genre||'その他')===singleCat) &&
-    (!q || c.name.toLowerCase().includes(q) || c.num.includes(q.replace(/[^\d]/g,'')||' ')));
-  if(!hits.length){
-    if(singleCat || q){ list.innerHTML = '<div class="combo-item" style="color:var(--sub); cursor:default">該当する取引先がありません</div>'; list.style.display='block'; }
-    else list.style.display='none';
-    return;
+  let hits = CONTACTS.filter(c => (!singleCat || (c.genre||'その他')===singleCat) &&
+    (!q || c.name.toLowerCase().includes(q)));
+  if(!hits.length){ list.innerHTML = `<div class="clist-empty">該当する取引先がありません</div>`; return; }
+  hits.sort((a,b)=>{ const ra=KANA_ORDER.indexOf(kanaRow(a.name)), rb=KANA_ORDER.indexOf(kanaRow(b.name));
+    if(ra!==rb) return ra-rb; return sortKey(a.name).localeCompare(sortKey(b.name),'ja'); });
+  let html='', lastRow='';
+  for(const c of hits){
+    const row = kanaRow(c.name);
+    if(row!==lastRow){ html += `<div class="chead">${esc(row)}</div>`; lastRow=row; }
+    html += `<div class="crow ${selContact&&selContact.num81===c.num81?'sel':''}" data-n="${esc(c.num81)}">
+      <span class="cn">${esc(c.name)}</span>
+      ${c.email?'<span class="cm" title="メールあり">📧</span>':''}
+      <span class="cg">${esc(c.genre||'その他')}</span>
+    </div>`;
   }
-  list.innerHTML = hits.map(c=>`<div class="combo-item" data-n="${esc(c.num81)}"><span>${esc(c.name)}${c.genre?` <span style="color:var(--sub);font-size:11px">[${esc(c.genre)}]</span>`:''}</span><span class="num">${esc(c.num)}</span></div>`).join('');
-  list.style.display='block';
-  list.querySelectorAll('.combo-item').forEach(el=>{
-    el.onclick = ()=>{ const c = CONTACTS.find(x=>x.num81===el.dataset.n); selectContact(c); };
+  list.innerHTML = html;
+  list.querySelectorAll('.crow').forEach(el=>{
+    el.onclick = ()=>{ const c = CONTACTS.find(x=>x.num81===el.dataset.n); if(c) selectContact(c); };
   });
 }
 function selectContact(c){
   selContact = c;
   $('#c-selected').classList.remove('hidden');
   $('#c-name').textContent = c.name;
-  $('#c-num').textContent = '｜' + c.num;
-  $('#c-search').value = ''; $('#c-list').style.display='none';
+  $('#c-num').textContent = '';
   $('#s-manual').value = '';
-  // メールがある取引先なら「メールでも送る」を表示
+  document.querySelectorAll('#c-list .crow').forEach(el=>el.classList.toggle('sel', el.dataset.n===c.num81));
   const mw = $('#s-mailwrap');
   if(c.email){ mw.classList.remove('hidden'); $('#s-mailaddr').textContent = c.email; $('#s-alsomail').checked = false; }
   else mw.classList.add('hidden');
   updateDestPreview();
 }
-$('#c-clear').onclick = ()=>{ selContact=null; $('#c-selected').classList.add('hidden'); $('#s-mailwrap').classList.add('hidden'); updateDestPreview(); };
-$('#c-search').addEventListener('input', e=>renderComboList(e.target.value));
-$('#c-search').addEventListener('focus', e=>renderComboList(e.target.value));
-document.addEventListener('click', e=>{ if(!$('#combo').contains(e.target)) $('#c-list').style.display='none'; });
-$('#s-manual').addEventListener('input', ()=>{ if($('#s-manual').value.trim() && selContact){ selContact=null; $('#c-selected').classList.add('hidden'); } updateDestPreview(); });
+$('#c-clear').onclick = ()=>{ selContact=null; $('#c-selected').classList.add('hidden'); $('#s-mailwrap').classList.add('hidden'); document.querySelectorAll('#c-list .crow.sel').forEach(el=>el.classList.remove('sel')); updateDestPreview(); };
+$('#c-search').addEventListener('input', e=>renderContactList(e.target.value));
+$('#single-mng').onclick = ()=>{ renderGenreList(''); $('#genre-ov').classList.add('show'); };
+$('#s-manual').addEventListener('input', ()=>{ if($('#s-manual').value.trim() && selContact){ selContact=null; $('#c-selected').classList.add('hidden'); document.querySelectorAll('#c-list .crow.sel').forEach(el=>el.classList.remove('sel')); } updateDestPreview(); });
 
 function destNumber(){
   if(selContact) return selContact.num;
@@ -1255,6 +1286,7 @@ $('#cf-ok').onclick = async ()=>{
 };
 function clearForm(){
   selContact = null; $('#c-selected').classList.add('hidden');
+  document.querySelectorAll('#c-list .crow.sel').forEach(el=>el.classList.remove('sel'));
   $('#s-mailwrap').classList.add('hidden'); $('#s-alsomail').checked=false; $('#b-alsomail').checked=false;
   $('#s-manual').value=''; $('#s-subject').value=''; $('#s-body').value='';
   attach = []; renderFiles(); updateDestPreview();
