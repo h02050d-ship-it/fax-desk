@@ -241,6 +241,9 @@ textarea{resize:vertical; min-height:130px}
 .ai-tbl td{border-bottom:1px solid var(--line); padding:3px 5px}
 .ai-tbl input, .ai-tbl select{border:1px solid var(--line); border-radius:6px; padding:4px 6px; font-size:12.5px; font-family:inherit}
 .ai-actions{display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap}
+.ai-fix{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap}
+.ai-fix input{flex:1; min-width:180px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:13px; font-family:inherit; background:#fff}
+.ai-fix .abtn{white-space:nowrap; background:var(--ink); color:#fff; border-color:var(--ink)}
 /* ===== PDF編集エディタ ===== */
 #editor{position:fixed; inset:0; background:#20293a; z-index:140; display:none; flex-direction:column}
 #editor.show{display:flex}
@@ -1479,16 +1482,18 @@ async function renderFaxCanvasesHiRes(files, targetW, rot, onCanvas){
 }
 function aiCacheGet(id){ try{ return JSON.parse(localStorage.getItem('fd_ai_'+id)||'null'); }catch(_){ return null; } }
 function aiCacheSet(id, r){ try{ localStorage.setItem('fd_ai_'+id, JSON.stringify(r)); }catch(_){} }
-async function doAiRead(item){
+async function doAiRead(item, opts){
+  opts = opts || {};
   const btn = $('#ip-ai'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin"></span>読み取り中…'; }
+  const fixBtn = $('#ai-refix'); if(fixBtn){ fixBtn.disabled=true; fixBtn.innerHTML='<span class="spin dark"></span>読み直し中…'; }
   try{
     // AI用に高解像度で描画し直す（回転反映済み）。低解像だと手書きが読めないため
     const files = await getFaxFiles(item.msgId); const tmp=[];
     await renderFaxCanvasesHiRes(files, 1600, getRot(item.msgId), cv=>tmp.push(cv));
     const imgs = tmp.slice(0,3).map(c=>c.toDataURL('image/png').split(',')[1]);
     if(!imgs.length){ toast('画像を取得できませんでした'); return; }
-    const r = await apiPost({action:'airead', hint:item.vendor||'', images:imgs});
-    if(r.ok){ aiCacheSet(item.msgId, r.result); if(selInboxId===item.msgId) renderAiPanel(item, r.result); }
+    const r = await apiPost({action:'airead', hint:item.vendor||'', images:imgs, correction:opts.correction||'', prev:opts.prev||''});
+    if(r.ok){ aiCacheSet(item.msgId, r.result); if(selInboxId===item.msgId) renderAiPanel(item, r.result); if(opts.correction) toast('訂正を反映して読み直しました'); }
     else toast('AI読み取り失敗: '+(r.error||''), 5000);
   }catch(err){ toast('AI読み取りエラー: '+(err.message||err), 5000); }
   finally{ if($('#ip-ai')){ $('#ip-ai').disabled=false; $('#ip-ai').innerHTML='🤖 AI読み取り'; } }
@@ -1536,12 +1541,24 @@ function renderAiPanel(item, res){
       <div class="ai-summary">${esc(res.summary||'').replace(/\n/g,'<br>')}</div>
       ${res.notes?`<div class="ai-notes">📝 ${esc(res.notes)}</div>`:''}
       ${itemsHtml}
+      <div class="ai-fix">
+        <input id="ai-fix-input" placeholder="✏️ AIの間違いを訂正（例: スノコじゃなくフローリング。杉は20枚。厚15）">
+        <button class="abtn" id="ai-refix">🔁 訂正して読み直す</button>
+      </div>
       <div class="ai-actions">${actionBtn}
         <span style="flex:1"></span>
-        <span class="hint" style="margin:0">※ AIの読み取りです。数量・寸法を確認してから確定してください</span>
+        <span class="hint" style="margin:0">※ 表を直接直す／文章で訂正→読み直す、どちらもOK。確認してから確定してください</span>
       </div>
     </div>`;
   $('#ai-close').onclick = ()=>{ el.innerHTML=''; };
+  const refix = $('#ai-refix');
+  if(refix) refix.onclick = ()=>{
+    const c = $('#ai-fix-input').value.trim();
+    if(!c){ toast('訂正内容を入力してください'); return; }
+    doAiRead(item, {correction:c, prev:JSON.stringify(res)});
+  };
+  const fixInput = $('#ai-fix-input');
+  if(fixInput) fixInput.addEventListener('keydown', e=>{ if(e.key==='Enter') refix.click(); });
   const addItem = $('#ai-additem'); if(addItem) addItem.onclick = ()=>{ res.items=collectAiItems(); res.items.push({product:'',jushu:'桧',unit:'枚'}); renderAiPanel(item,res); };
   el.querySelectorAll('.ai-del').forEach(b=>b.onclick=()=>{ res.items=collectAiItems(); res.items.splice(Number(b.dataset.i),1); renderAiPanel(item,res); });
   const tk = $('#ai-tokakou'); if(tk) tk.onclick = ()=>addToKakou(item, res);
