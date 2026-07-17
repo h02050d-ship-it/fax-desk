@@ -300,6 +300,7 @@ textarea{resize:vertical; min-height:130px}
           <!-- 個別宛先 -->
           <div id="dest-single">
             <label class="lbl">宛先（取引先から選ぶ）</label>
+            <div class="gchips" id="single-cat-chips" style="margin-bottom:8px"></div>
             <div class="combo" id="combo">
               <input class="txt" id="c-search" placeholder="取引先名で検索…（例: ナイス）" autocomplete="off">
               <div class="combo-list" id="c-list"></div>
@@ -486,7 +487,7 @@ textarea{resize:vertical; min-height:130px}
 /* ==== 設定 ==== */
 const API_URL = "https://script.google.com/macros/s/AKfycbxQCf2HVfLjUAzOYXJHzzhquN3zkNrUAgcusg3mH5uhlm-UySsDYXBChhLjZGI2DyecIg/exec";
 const LSK = 'faxdesk_cred';
-const GENRES = ['市場','仕入先','運送','組合','その他'];
+const GENRES = ['市場','修繕・備品・運送','その他','テスト'];
 
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = './pdf.worker.min.js';
 
@@ -861,11 +862,27 @@ document.querySelectorAll('.seg div').forEach(el=>{
 });
 
 /* ==== 取引先コンボ（個別） ==== */
+let singleCat = '';
+function renderSingleCatChips(){
+  const wrap = $('#single-cat-chips'); if(!wrap) return;
+  const counts = {}; CONTACTS.forEach(c=>{ const g=c.genre||'その他'; counts[g]=(counts[g]||0)+1; });
+  wrap.innerHTML = `<span class="gchip ${singleCat===''?'on':''}" data-g="">すべて</span>` +
+    GENRES.map(g=>`<span class="gchip ${singleCat===g?'on':''}" data-g="${esc(g)}">${esc(g)} ${counts[g]||0}</span>`).join('');
+  wrap.querySelectorAll('.gchip').forEach(el=>{
+    el.onclick = ()=>{ singleCat = el.dataset.g; renderSingleCatChips();
+      renderComboList($('#c-search').value); $('#c-list').style.display='block'; $('#c-search').focus(); };
+  });
+}
 function renderComboList(q){
   const list = $('#c-list');
   q = (q||'').trim().toLowerCase();
-  const hits = CONTACTS.filter(c => !q || c.name.toLowerCase().includes(q) || c.num.includes(q.replace(/[^\d]/g,'')||' '));
-  if(!hits.length){ list.style.display='none'; return; }
+  const hits = CONTACTS.filter(c => (!singleCat || (c.genre||'その他')===singleCat) &&
+    (!q || c.name.toLowerCase().includes(q) || c.num.includes(q.replace(/[^\d]/g,'')||' ')));
+  if(!hits.length){
+    if(singleCat || q){ list.innerHTML = '<div class="combo-item" style="color:var(--sub); cursor:default">該当する取引先がありません</div>'; list.style.display='block'; }
+    else list.style.display='none';
+    return;
+  }
   list.innerHTML = hits.map(c=>`<div class="combo-item" data-n="${esc(c.num81)}"><span>${esc(c.name)}${c.genre?` <span style="color:var(--sub);font-size:11px">[${esc(c.genre)}]</span>`:''}</span><span class="num">${esc(c.num)}</span></div>`).join('');
   list.style.display='block';
   list.querySelectorAll('.combo-item').forEach(el=>{
@@ -1287,6 +1304,7 @@ $('#nc-ok').onclick = async ()=>{
     $('#contact-ov').classList.remove('show');
     $('#nc-name').value=''; $('#nc-num').value='';
     const c = await apiGet('contacts'); if(c.ok) CONTACTS = c.contacts;
+    renderSingleCatChips();
     if($('#genre-ov').classList.contains('show')) renderGenreList($('#gm-search').value);
     if(sendMode==='bulk') renderGenreChips();
   } else toast(r.error||'登録できませんでした', 4000);
@@ -1773,6 +1791,7 @@ async function boot(){
     if(cs && cs.length){ SENT = cs; SENT._loaded = true; }
   }catch(_){}
   if(!CONTACTS.length){ const c = await apiGet('contacts').catch(()=>null); if(c && c.ok) CONTACTS = c.contacts; }
+  renderSingleCatChips();
   loadInbox();
   loadSent();
   loadPresets();
