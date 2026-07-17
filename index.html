@@ -234,7 +234,12 @@ textarea{resize:vertical; min-height:130px}
 .ip-bar .ttl{font-weight:800; font-size:14px; margin-right:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .ip-bar select{width:auto; padding:6px 8px; font-size:13px; border-radius:8px}
 .ip-body{padding:14px; max-height:calc(100vh - 190px); overflow:auto; background:#f7f9fb}
-.ip-body canvas, .ip-body img{width:100%; max-width:620px; margin:0 auto 12px; display:block; background:#fff; box-shadow:0 2px 12px rgba(0,0,0,.15); border-radius:2px}
+.ip-body canvas, .ip-body img{width:var(--ipw,100%); max-width:none; margin:0 auto 12px; display:block; background:#fff; box-shadow:0 2px 12px rgba(0,0,0,.15); border-radius:2px}
+.ip-zoom{display:inline-flex; align-items:center; gap:2px; border:1px solid var(--line); border-radius:8px; background:#fff; overflow:hidden}
+.ip-zoom button{border:none; background:#fff; cursor:pointer; padding:5px 9px; font-size:13px; font-weight:700; color:var(--ink)}
+.ip-zoom button:hover{background:var(--gray-soft)}
+.ip-zoom button:disabled{opacity:.28; cursor:default; background:#fff}
+.ip-zoom .lv{font-size:11.5px; color:var(--sub); min-width:38px; text-align:center; font-weight:700}
 .ip-empty{display:flex; align-items:center; justify-content:center; min-height:340px; color:var(--sub); font-size:14px; text-align:center; padding:20px}
 .ip-memo{width:100%; border:1px dashed var(--line); border-radius:8px; padding:6px 10px; font-size:13px; font-family:inherit; background:#fffdf2}
 /* AI読み取りパネル */
@@ -1520,6 +1525,7 @@ async function selectInbox(item){
       <span class="ttl">${esc(item.vendor || '不明 '+fmtNum(item.faxNum))}</span>
       <select id="ip-status">${INBOX_STATUSES.map(s=>`<option ${s===item.status?'selected':''}>${s}</option>`).join('')}</select>
       <button class="abtn" id="ip-ai" style="background:var(--blue);color:#fff;border-color:var(--blue)">🤖 AI読み取り</button>
+      <span class="ip-zoom"><button id="ip-zoomout" title="縮小">−</button><span class="lv" id="ip-zoomlv">100%</span><button id="ip-zoomin" title="拡大">＋</button></span>
       <button class="abtn" id="ip-rot" title="90度回転">🔄 回転</button>
       <button class="abtn primary" id="ip-edit">✏️ 編集して返信</button>
       <button class="abtn" id="ip-reply">↩️ 返信</button>
@@ -1545,6 +1551,9 @@ async function selectInbox(item){
   $('#ip-dl').onclick = ()=>downloadFax(item.msgId, item.vendor||item.faxNum);
   $('#ip-print').onclick = ()=>printFax(item);
   $('#ip-rot').onclick = ()=>{ setRot(item.msgId, getRot(item.msgId)+90); drawInboxPreview(item); };
+  $('#ip-zoomin').onclick  = ()=>stepIpZoom(1);
+  $('#ip-zoomout').onclick = ()=>stepIpZoom(-1);
+  applyIpZoom();
   $('#ip-ai').onclick = ()=>doAiRead(item);
   // キャッシュ済みのAI結果があれば即表示
   const cached = aiCacheGet(item.msgId);
@@ -1553,14 +1562,16 @@ async function selectInbox(item){
 }
 /* ==== AI読み取り（受信FAX→要約・種別・注文抽出→加工予定表） ==== */
 // AI送信用の高解像度描画（絶対ピクセル幅指定・DPR非依存）
-async function renderFaxCanvasesHiRes(files, targetW, rot, onCanvas){
+async function renderFaxCanvasesHiRes(files, targetW, rot, onCanvas, abort){
   for(const f of files){
+    if(abort && abort()) return;
     if(/^image\//.test(f.mime)){
       const img=await loadImg(`data:${f.mime};base64,${f.data}`);
       const cv=document.createElement('canvas'); drawRotatedImg(cv, img, rot, targetW); onCanvas(cv);
     } else {
       const bytes=b64ToBytes(f.data); const pdf=await pdfjsLib.getDocument({data:bytes.slice()}).promise;
       for(let p=1;p<=pdf.numPages;p++){
+        if(abort && abort()) return;
         const page=await pdf.getPage(p); const vp1=page.getViewport({scale:1, rotation:rot});
         const vp=page.getViewport({scale: targetW/vp1.width, rotation:rot});
         const cv=document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height;
@@ -1753,6 +1764,24 @@ async function printFax(item){
     setTimeout(doPrint, 1200);
   }catch(err){ toast('印刷準備に失敗: '+(err.message||err)); try{ w.close(); }catch(_){} }
 }
+/* ==== 受信プレビューのズーム（100%＝右ペイン幅いっぱい・localStorage記憶） ==== */
+const IP_ZOOMS = [60, 80, 100, 125, 150, 200, 300];
+let ipZoom = (function(){ const v = Number(localStorage.getItem('fd_ipzoom')); return IP_ZOOMS.includes(v) ? v : 100; })();
+function applyIpZoom(){
+  const body = $('#ip-body'); if(body) body.style.setProperty('--ipw', ipZoom + '%');
+  const lv = $('#ip-zoomlv'); if(lv) lv.textContent = ipZoom + '%';
+  const i = IP_ZOOMS.indexOf(ipZoom);
+  const out = $('#ip-zoomout'), zin = $('#ip-zoomin');
+  if(out) out.disabled = (i<=0);
+  if(zin) zin.disabled = (i>=IP_ZOOMS.length-1);
+}
+function stepIpZoom(d){
+  const i = IP_ZOOMS.indexOf(ipZoom) + d;
+  if(i<0 || i>=IP_ZOOMS.length) return;
+  ipZoom = IP_ZOOMS[i];
+  try{ localStorage.setItem('fd_ipzoom', String(ipZoom)); }catch(_){}
+  applyIpZoom();
+}
 async function drawInboxPreview(item){
   const body = $('#ip-body'); if(!body) return;
   body.innerHTML = '<div class="ip-empty"><span class="spin dark"></span> 読み込み中…</div>';
@@ -1760,7 +1789,9 @@ async function drawInboxPreview(item){
     const files = await getFaxFiles(item.msgId);
     if(selInboxId!==item.msgId) return;
     body.innerHTML = '';
-    await renderFaxCanvases(files, 620, getRot(item.msgId), cv=>body.appendChild(cv), ()=>selInboxId!==item.msgId);
+    // 拡大してもボケないよう1600px相当で描画し、表示サイズはCSS(--ipw)側で可変にする
+    await renderFaxCanvasesHiRes(files, 1600, getRot(item.msgId), cv=>body.appendChild(cv), ()=>selInboxId!==item.msgId);
+    applyIpZoom();
   }catch(err){ body.innerHTML = `<div class="ip-empty">読み込みに失敗しました<br>${esc(err.message||err)}</div>`; }
 }
 
