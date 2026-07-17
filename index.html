@@ -225,6 +225,22 @@ textarea{resize:vertical; min-height:130px}
 .ip-body canvas, .ip-body img{width:100%; max-width:620px; margin:0 auto 12px; display:block; background:#fff; box-shadow:0 2px 12px rgba(0,0,0,.15); border-radius:2px}
 .ip-empty{display:flex; align-items:center; justify-content:center; min-height:340px; color:var(--sub); font-size:14px; text-align:center; padding:20px}
 .ip-memo{width:100%; border:1px dashed var(--line); border-radius:8px; padding:6px 10px; font-size:13px; font-family:inherit; background:#fffdf2}
+/* AI読み取りパネル */
+#ai-panel{padding:0 12px}
+.ai-card{border:1.5px solid var(--blue); border-radius:12px; background:#f7faff; padding:12px 14px; margin-top:10px}
+.ai-head{display:flex; align-items:center; gap:8px; font-size:14px}
+.ai-head b{font-size:14px}
+.ai-conf{color:var(--sub); font-size:12px}
+.ai-x{margin-left:auto; border:none; background:transparent; cursor:pointer; color:var(--sub); font-size:15px}
+.ai-vendor{font-size:13px; font-weight:700; margin-top:6px}
+.ai-summary{font-size:13.5px; margin-top:6px; line-height:1.7; white-space:pre-wrap}
+.ai-notes{font-size:12.5px; color:var(--orange); background:var(--orange-soft); border-radius:8px; padding:6px 10px; margin-top:8px}
+.ai-items{margin-top:10px; overflow-x:auto}
+.ai-tbl{border-collapse:collapse; font-size:12.5px; width:100%}
+.ai-tbl th{background:var(--gray-soft); color:var(--sub); font-weight:700; padding:4px 6px; white-space:nowrap; text-align:left}
+.ai-tbl td{border-bottom:1px solid var(--line); padding:3px 5px}
+.ai-tbl input, .ai-tbl select{border:1px solid var(--line); border-radius:6px; padding:4px 6px; font-size:12.5px; font-family:inherit}
+.ai-actions{display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap}
 /* ===== PDF編集エディタ ===== */
 #editor{position:fixed; inset:0; background:#20293a; z-index:140; display:none; flex-direction:column}
 #editor.show{display:flex}
@@ -1410,6 +1426,7 @@ async function selectInbox(item){
     <div class="ip-bar">
       <span class="ttl">${esc(item.vendor || '不明 '+fmtNum(item.faxNum))}</span>
       <select id="ip-status">${INBOX_STATUSES.map(s=>`<option ${s===item.status?'selected':''}>${s}</option>`).join('')}</select>
+      <button class="abtn" id="ip-ai" style="background:var(--blue);color:#fff;border-color:var(--blue)">🤖 AI読み取り</button>
       <button class="abtn" id="ip-rot" title="90度回転">🔄 回転</button>
       <button class="abtn primary" id="ip-edit">✏️ 編集して返信</button>
       <button class="abtn" id="ip-reply">↩️ 返信</button>
@@ -1417,6 +1434,7 @@ async function selectInbox(item){
       <button class="abtn" id="ip-dl" title="ダウンロード">⬇️</button>
     </div>
     <div style="padding:8px 12px 0"><input class="ip-memo" id="ip-memo" placeholder="メモ…" value="${esc(item.memo||'')}"></div>
+    <div id="ai-panel"></div>
     <div class="ip-body" id="ip-body"><div class="ip-empty"><span class="spin dark"></span> 読み込み中…</div></div>`;
   $('#ip-status').onchange = async e=>{
     item.status = e.target.value; markLocalStatus(item.msgId, {status:item.status}); renderInbox();
@@ -1434,7 +1452,134 @@ async function selectInbox(item){
   $('#ip-dl').onclick = ()=>downloadFax(item.msgId, item.vendor||item.faxNum);
   $('#ip-print').onclick = ()=>printFax(item);
   $('#ip-rot').onclick = ()=>{ setRot(item.msgId, getRot(item.msgId)+90); drawInboxPreview(item); };
+  $('#ip-ai').onclick = ()=>doAiRead(item);
+  // キャッシュ済みのAI結果があれば即表示
+  const cached = aiCacheGet(item.msgId);
+  if(cached) renderAiPanel(item, cached);
   drawInboxPreview(item);
+}
+/* ==== AI読み取り（受信FAX→要約・種別・注文抽出→加工予定表） ==== */
+function aiCacheGet(id){ try{ return JSON.parse(localStorage.getItem('fd_ai_'+id)||'null'); }catch(_){ return null; } }
+function aiCacheSet(id, r){ try{ localStorage.setItem('fd_ai_'+id, JSON.stringify(r)); }catch(_){} }
+async function doAiRead(item){
+  const btn = $('#ip-ai'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin"></span>読み取り中…'; }
+  try{
+    // 表示中のプレビュー画像（回転反映済み）をPNGで送る。未描画なら描画
+    let canvases = [...document.querySelectorAll('#ip-body canvas')];
+    let imgs = [];
+    if(canvases.length){ imgs = canvases.slice(0,3).map(c=>c.toDataURL('image/png').split(',')[1]); }
+    else {
+      const files = await getFaxFiles(item.msgId); const tmp=[];
+      await renderFaxCanvases(files, 1000, getRot(item.msgId), cv=>tmp.push(cv), ()=>false);
+      imgs = tmp.slice(0,3).map(c=>c.toDataURL('image/png').split(',')[1]);
+    }
+    if(!imgs.length){ toast('画像を取得できませんでした'); return; }
+    const r = await apiPost({action:'airead', hint:item.vendor||'', images:imgs});
+    if(r.ok){ aiCacheSet(item.msgId, r.result); if(selInboxId===item.msgId) renderAiPanel(item, r.result); }
+    else toast('AI読み取り失敗: '+(r.error||''), 5000);
+  }catch(err){ toast('AI読み取りエラー: '+(err.message||err), 5000); }
+  finally{ if($('#ip-ai')){ $('#ip-ai').disabled=false; $('#ip-ai').innerHTML='🤖 AI読み取り'; } }
+}
+function aiTypeBadge(t){
+  const map={'注文':'p-green','見積り':'p-blue','連絡':'p-orange','その他':'p-gray'};
+  return `<span class="pill ${map[t]||'p-gray'}">${esc(t||'その他')}</span>`;
+}
+const KAKOU_HINMEI=[['','（選択）'],['F','フローリング'],['P','羽目板'],['S','スノコ'],['N','野地板'],['G','原板'],['X','その他']];
+function productToHin(p){ p=String(p||''); if(/フローリング/.test(p))return'F'; if(/羽目|パネリング/.test(p))return'P'; if(/スノコ/.test(p))return'S'; if(/野地/.test(p))return'N'; if(/原板|KD/.test(p))return'G'; return'X'; }
+function renderAiPanel(item, res){
+  const el = $('#ai-panel'); if(!el) return;
+  res = res || {};
+  const items = Array.isArray(res.items)? res.items : [];
+  let itemsHtml = '';
+  if(items.length && (res.type==='注文'||res.type==='見積り')){
+    itemsHtml = `<div class="ai-items">
+      <table class="ai-tbl"><thead><tr><th>品名</th><th>樹種</th><th>厚</th><th>幅</th><th>長</th><th>等級</th><th>数量</th><th>単位</th><th></th></tr></thead>
+      <tbody>` + items.map((it,i)=>`
+        <tr data-i="${i}">
+          <td><select data-f="hin">${KAKOU_HINMEI.map(([v,l])=>`<option value="${v}" ${productToHin(it.product)===v?'selected':''}>${l}</option>`).join('')}</select></td>
+          <td><input data-f="jushu" value="${esc(it.jushu||'')}" style="width:44px"></td>
+          <td><input data-f="thickness" value="${it.thickness==null?'':esc(it.thickness)}" style="width:42px" inputmode="numeric"></td>
+          <td><input data-f="width" value="${it.width==null?'':esc(it.width)}" style="width:46px" inputmode="numeric"></td>
+          <td><input data-f="length" value="${it.length==null?'':esc(it.length)}" style="width:52px" inputmode="numeric"></td>
+          <td><input data-f="grade" value="${esc(it.grade||'')}" style="width:60px"></td>
+          <td><input data-f="qty" value="${it.qty==null?'':esc(it.qty)}" style="width:48px" inputmode="numeric"></td>
+          <td><input data-f="unit" value="${esc(it.unit||'枚')}" style="width:40px"></td>
+          <td><button class="abtn ai-del" data-i="${i}" style="color:var(--red);padding:2px 7px">✕</button></td>
+        </tr>`).join('') + `</tbody></table>
+      <button class="abtn" id="ai-additem" style="margin-top:6px">＋行を追加</button>
+    </div>`;
+  }
+  const actionBtn = res.type==='注文'
+    ? `<button class="btn" id="ai-tokakou">🪵 加工予定表に追加</button>`
+    : res.type==='見積り'
+    ? `<button class="btn sub" id="ai-quote">💰 見積り返信を作成（下書き）</button>`
+    : '';
+  el.innerHTML = `
+    <div class="ai-card">
+      <div class="ai-head">${aiTypeBadge(res.type)} <b>AI読み取り結果</b>
+        <span class="ai-conf">確度: ${esc(res.confidence||'-')}</span>
+        <button class="ai-x" id="ai-close" title="閉じる">✕</button></div>
+      ${res.vendor?`<div class="ai-vendor">取引先: ${esc(res.vendor)}</div>`:''}
+      <div class="ai-summary">${esc(res.summary||'').replace(/\n/g,'<br>')}</div>
+      ${res.notes?`<div class="ai-notes">📝 ${esc(res.notes)}</div>`:''}
+      ${itemsHtml}
+      <div class="ai-actions">${actionBtn}
+        <span style="flex:1"></span>
+        <span class="hint" style="margin:0">※ AIの読み取りです。数量・寸法を確認してから確定してください</span>
+      </div>
+    </div>`;
+  $('#ai-close').onclick = ()=>{ el.innerHTML=''; };
+  const addItem = $('#ai-additem'); if(addItem) addItem.onclick = ()=>{ res.items=collectAiItems(); res.items.push({product:'',jushu:'桧',unit:'枚'}); renderAiPanel(item,res); };
+  el.querySelectorAll('.ai-del').forEach(b=>b.onclick=()=>{ res.items=collectAiItems(); res.items.splice(Number(b.dataset.i),1); renderAiPanel(item,res); });
+  const tk = $('#ai-tokakou'); if(tk) tk.onclick = ()=>addToKakou(item, res);
+  const qb = $('#ai-quote'); if(qb) qb.onclick = ()=>quoteReply(item, res);
+}
+function collectAiItems(){
+  return [...document.querySelectorAll('#ai-panel .ai-tbl tbody tr')].map(tr=>{
+    const g=f=>{ const el=tr.querySelector(`[data-f="${f}"]`); return el?el.value.trim():''; };
+    const hin=g('hin');
+    const label=(KAKOU_HINMEI.find(([v])=>v===hin)||[])[1]||'';
+    return {product:label, hin, jushu:g('jushu'), thickness:Number(g('thickness'))||null, width:Number(g('width'))||null,
+      length:Number(g('length'))||null, grade:g('grade'), qty:Number(g('qty'))||null, unit:g('unit')||'枚'};
+  });
+}
+// 数量(合計)→ 入数(qty)・束数(planned) を計算（order-desk同ロジック）
+function kakouQtyPlan(total, len){
+  total=Number(total)||0; len=Number(len)||0;
+  if(!total) return {qty:'', planned:''};
+  if(len>=1820){ return {qty:'10', planned:String(Math.ceil(total/10))}; }
+  const planned=Math.max(1,Math.ceil(total/40)); return {qty:String(Math.ceil(total/planned)), planned:String(planned)};
+}
+async function addToKakou(item, res){
+  const items = collectAiItems().filter(it=>it.hin && it.hin!=='X' && it.length);
+  if(!items.length){ toast('加工予定表に追加できる行がありません（品名・長さを確認）'); return; }
+  const vendor = res.vendor || item.vendor || '';
+  const rows = items.map(it=>{
+    const qp = kakouQtyPlan(it.qty, it.length);
+    return { order:'8', customer:vendor, carrier:'', hinmei:it.hin,
+      grade:it.grade||'-', thickness:String(it.thickness||''), width:String(it.width||((it.hin==='F'||it.hin==='P')?'120':'')),
+      length:String(it.length||''), qty:qp.qty, planned:qp.planned, actual:'-', seal:'無', danball:'有',
+      remark:('AI取込 '+(res.notes||'')).trim() };
+  });
+  const lines = rows.map(r=>`・${r.hinmei} ${r.grade} ${r.thickness}×${r.width}×${r.length} ${r.qty}枚×${r.planned}束`).join('\n');
+  if(!confirm(`加工予定表に次を追加します（${rows.length}行）\n取引先: ${vendor}\n\n${lines}\n\nよろしいですか？`)) return;
+  const btn=$('#ai-tokakou'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin"></span>追加中…'; }
+  const r = await apiPost({action:'kakouadd', msgId:item.msgId, rows});
+  if(btn){ btn.disabled=false; btn.innerHTML='🪵 加工予定表に追加'; }
+  if(r.ok){ toast(`✅ 加工予定表に${r.written}行追加しました`, 4000);
+    item.status='対応済'; markLocalStatus(item.msgId,{status:'対応済'}); renderInbox();
+    apiPost({action:'status', msgId:item.msgId, status:'対応済'});
+  } else toast('追加に失敗: '+(r.error||''), 5000);
+}
+function quoteReply(item, res){
+  // フェーズ2で価格・運賃自動計算。今は要約と品目を返信本文にプリセット
+  const items = collectAiItems();
+  const lines = items.map(it=>`・${it.product||''} ${it.jushu||''} ${it.thickness||''}×${it.width||''}×${it.length||''} ${it.grade||''} ${it.qty||''}${it.unit||''}`).join('\n');
+  prefillReply(item);
+  $('#s-subject').value = `【林材木店】お見積りの件`;
+  $('#s-body').value = `${res.vendor||item.vendor||''} 御中\n\nお見積り依頼ありがとうございます。下記の件、お見積りいたします。\n\n${lines}\n\n（金額は確認のうえ追記します）`;
+  renderCover();
+  toast('返信の下書きに反映しました（金額は価格表・運賃表で追記予定＝次の段階）', 4500);
 }
 async function printFax(item){
   const w = window.open('about:blank');
