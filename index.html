@@ -417,6 +417,7 @@ textarea{resize:vertical; min-height:130px}
     <span class="ed-ttl" id="ed-title">FAXを編集</span>
     <button class="ed-tool" id="ed-tool-text">🅣 文字を追加</button>
     <button class="ed-tool" id="ed-tool-stamp">🖋 印鑑</button>
+    <button class="ed-tool" id="ed-tool-date">📅 日付</button>
     <button class="ed-tool ghost" id="ed-rotate">🔄 回転</button>
     <button class="ed-tool ghost" id="ed-undo">↩︎ 元に戻す</button>
     <span class="ed-hint" id="ed-status"></span>
@@ -1349,7 +1350,8 @@ async function selectInbox(item){
       <button class="abtn" id="ip-rot" title="90度回転">🔄 回転</button>
       <button class="abtn primary" id="ip-edit">✏️ 編集して返信</button>
       <button class="abtn" id="ip-reply">↩️ 返信</button>
-      <button class="abtn" id="ip-dl">⬇️</button>
+      <button class="abtn" id="ip-print" title="印刷">🖨️ 印刷</button>
+      <button class="abtn" id="ip-dl" title="ダウンロード">⬇️</button>
     </div>
     <div style="padding:8px 12px 0"><input class="ip-memo" id="ip-memo" placeholder="メモ…" value="${esc(item.memo||'')}"></div>
     <div class="ip-body" id="ip-body"><div class="ip-empty"><span class="spin dark"></span> 読み込み中…</div></div>`;
@@ -1367,8 +1369,32 @@ async function selectInbox(item){
   $('#ip-reply').onclick = ()=>prefillReply(item);
   $('#ip-edit').onclick = ()=>openEditor(item);
   $('#ip-dl').onclick = ()=>downloadFax(item.msgId, item.vendor||item.faxNum);
+  $('#ip-print').onclick = ()=>printFax(item);
   $('#ip-rot').onclick = ()=>{ setRot(item.msgId, getRot(item.msgId)+90); drawInboxPreview(item); };
   drawInboxPreview(item);
+}
+async function printFax(item){
+  const w = window.open('about:blank');
+  if(!w){ toast('ポップアップがブロックされました'); return; }
+  try{
+    // 表示中のプレビュー（回転反映済み）をそのまま印刷。未描画なら描画してから
+    let urls = [...document.querySelectorAll('#ip-body canvas')].map(c=>c.toDataURL('image/png'))
+      .concat([...document.querySelectorAll('#ip-body img')].map(i=>i.src));
+    if(!urls.length){
+      const files = await getFaxFiles(item.msgId);
+      const tmp = [];
+      await renderFaxCanvases(files, 720, getRot(item.msgId), cv=>tmp.push(cv), ()=>false);
+      urls = tmp.map(c=>c.toDataURL('image/png'));
+    }
+    w.document.write(`<!doctype html><html><head><title>FAX印刷 ${esc(item.vendor||'')}</title>
+      <style>@page{margin:8mm} body{margin:0} img{width:100%; display:block; page-break-after:always} img:last-child{page-break-after:auto}</style>
+      </head><body>` + urls.map(u=>`<img src="${u}">`).join('') + `</body></html>`);
+    w.document.close();
+    let printed = false;
+    const doPrint = ()=>{ if(printed) return; printed = true; try{ w.focus(); w.print(); }catch(_){} };
+    w.onload = ()=>setTimeout(doPrint, 250);
+    setTimeout(doPrint, 1200);
+  }catch(err){ toast('印刷準備に失敗: '+(err.message||err)); try{ w.close(); }catch(_){} }
 }
 async function drawInboxPreview(item){
   const body = $('#ip-body'); if(!body) return;
@@ -1414,8 +1440,34 @@ function renderSent(){
 
 /* ==== PDF編集エディタ（受信FAXにハンコ・文字を入れて送り返す） ==== */
 function loadImg(src){ return new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=src; }); }
-function edGetStamps(){ try{ return JSON.parse(localStorage.getItem('fd_stamps')||'[]'); }catch(_){ return []; } }
-function edSetStamps(a){ try{ localStorage.setItem('fd_stamps', JSON.stringify(a)); }catch(_){ toast('印鑑の保存に失敗（容量超過かも）'); } }
+/* 印鑑はサーバー(Drive)保存＝どの端末でも同じパレット。端末にもキャッシュして即表示 */
+let STAMPS = [];   // {id, name, dataUrl}
+function stampCacheSave(){ try{ localStorage.setItem('fd_stamps_cache', JSON.stringify(STAMPS)); }catch(_){} }
+async function loadStamps(){
+  try{ const c = JSON.parse(localStorage.getItem('fd_stamps_cache')||'null'); if(c && c.length){ STAMPS = c; } }catch(_){}
+  try{
+    const r = await apiGet('stamps');
+    if(r.ok){
+      STAMPS = (r.stamps||[]).map(s=>({id:s.id, name:s.name, dataUrl:`data:${s.mime||'image/png'};base64,${s.data}`}));
+      stampCacheSave();
+      if(edState) renderStampPalette();
+    }
+  }catch(_){}
+  // 旧ローカル保存分があればサーバーへ移行
+  try{
+    const old = JSON.parse(localStorage.getItem('fd_stamps')||'[]');
+    if(old.length){
+      for(const s of old){
+        const b64 = String(s.dataUrl||'').split(',')[1];
+        if(b64) await apiPost({action:'addstamp', name:s.name||'印鑑', mime:'image/png', data:b64});
+      }
+      localStorage.removeItem('fd_stamps');
+      const r2 = await apiGet('stamps');
+      if(r2.ok){ STAMPS = (r2.stamps||[]).map(s=>({id:s.id, name:s.name, dataUrl:`data:${s.mime||'image/png'};base64,${s.data}`})); stampCacheSave(); }
+    }
+  }catch(_){}
+}
+function edGetStamps(){ return STAMPS; }
 
 async function openEditor(item){
   edState = { item, files:null, pages: [], tool:null, stamp:null, history:[], rot:getRot(item.msgId) };
@@ -1471,9 +1523,11 @@ function setEdTool(t){
   edState.tool=t;
   $('#ed-tool-text').classList.toggle('on', t==='text');
   $('#ed-tool-stamp').classList.toggle('on', t==='stamp');
+  $('#ed-tool-date').classList.toggle('on', t==='date');
   document.querySelectorAll('.ed-page').forEach(p=>p.style.cursor = t ? 'crosshair' : '');
-  $('#ed-status').textContent = t==='text' ? '文字を置きたい場所をクリック' : t==='stamp' ? '印鑑を押したい場所をクリック' : '';
+  $('#ed-status').textContent = t==='text' ? '文字を置きたい場所をクリック' : t==='stamp' ? '印鑑を押したい場所をクリック' : t==='date' ? '日付を置きたい場所をクリック' : '';
 }
+function todayStr(){ const d=new Date(); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`; }
 function onEdPagePointer(e, pageEl){
   if(e.target.closest('.ed-obj')) return;
   // 空クリックで選択解除
@@ -1481,6 +1535,7 @@ function onEdPagePointer(e, pageEl){
   const r=pageEl.getBoundingClientRect();
   const x=e.clientX-r.left, y=e.clientY-r.top;
   if(edState.tool==='text') placeText(pageEl, x, y);
+  else if(edState.tool==='date') placeText(pageEl, x, y, {text: todayStr(), color:'#bc2026', noEdit:true});
   else if(edState.tool==='stamp' && edState.stamp) placeStamp(pageEl, x, y, edState.stamp);
   setEdTool(null);
 }
@@ -1493,18 +1548,23 @@ function edFrame(obj){
   return h;
 }
 function selectEdObj(obj){ document.querySelectorAll('.ed-obj.sel').forEach(o=>o.classList.remove('sel')); obj.classList.add('sel'); }
-function placeText(pageEl, x, y){
+function placeText(pageEl, x, y, preset){
+  preset = preset || {};
   const obj=document.createElement('div'); obj.className='ed-obj txt sel';
   obj.style.left=x+'px'; obj.style.top=y+'px'; obj.dataset.fontpx='24'; obj.style.fontSize='24px';
-  obj.textContent='ここに入力';
+  obj.dataset.color = preset.color || '#111111';
+  obj.style.color = obj.dataset.color;
+  obj.textContent = preset.text || 'ここに入力';
   const h=edFrame(obj); pageEl.appendChild(obj);
   wireEdDrag(obj, pageEl, ()=>obj.getAttribute('contenteditable')==='true');
   wireEdResize(h, obj, pageEl, 'text');
   obj.addEventListener('dblclick', ()=>{ obj.setAttribute('contenteditable','true'); obj.focus();
     const sel=window.getSelection(), rng=document.createRange(); rng.selectNodeContents(obj); sel.removeAllRanges(); sel.addRange(rng); });
   obj.addEventListener('blur', ()=>{ obj.removeAttribute('contenteditable'); if(!obj.innerText.trim()) obj.remove(); });
-  // 置いたら即編集
-  setTimeout(()=>{ obj.setAttribute('contenteditable','true'); obj.focus(); const sel=window.getSelection(), rng=document.createRange(); rng.selectNodeContents(obj); sel.removeAllRanges(); sel.addRange(rng); }, 0);
+  // 置いたら即編集（日付などプリセット文字はそのまま置く）
+  if(!preset.noEdit){
+    setTimeout(()=>{ obj.setAttribute('contenteditable','true'); obj.focus(); const sel=window.getSelection(), rng=document.createRange(); rng.selectNodeContents(obj); sel.removeAllRanges(); sel.addRange(rng); }, 0);
+  }
   edState.history.push(obj); selectEdObj(obj);
 }
 async function placeStamp(pageEl, x, y, dataUrl){
@@ -1559,24 +1619,34 @@ function renderStampPalette(){
     };
   });
   wrap.querySelectorAll('[data-del]').forEach(el=>{
-    el.onclick=e=>{ e.stopPropagation(); const a=edGetStamps(); a.splice(Number(el.dataset.del),1); edSetStamps(a); renderStampPalette(); };
+    el.onclick=async e=>{
+      e.stopPropagation();
+      const s = STAMPS[Number(el.dataset.del)]; if(!s) return;
+      if(!confirm(`印鑑「${s.name}」を削除しますか？（全端末から消えます）`)) return;
+      const r = await apiPost({action:'delstamp', id:s.id});
+      if(r.ok){ STAMPS = (r.stamps||[]).map(x=>({id:x.id, name:x.name, dataUrl:`data:${x.mime||'image/png'};base64,${x.data}`})); stampCacheSave(); renderStampPalette(); toast('削除しました'); }
+      else toast(r.error||'削除に失敗しました');
+    };
   });
   $('#ed-stamp-add').onclick=()=>$('#ed-stamp-file').click();
 }
 $('#ed-stamp-file').onchange=async e=>{
   const f=e.target.files[0]; e.target.value=''; if(!f) return;
-  // 透過PNG推奨。大きすぎる画像は縮小して保存
+  // 透過PNG推奨。大きすぎる画像は縮小してサーバーへ保存（全端末共有）
   try{
+    toast('印鑑を登録中…');
     const img=await loadImg(URL.createObjectURL(f));
-    const max=400, sc=Math.min(1, max/Math.max(img.width,img.height));
+    const max=640, sc=Math.min(1, max/Math.max(img.width,img.height));
     const cv=document.createElement('canvas'); cv.width=Math.round(img.width*sc); cv.height=Math.round(img.height*sc);
     cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
-    const dataUrl=cv.toDataURL('image/png');
-    const a=edGetStamps(); a.push({name:f.name, dataUrl}); edSetStamps(a); renderStampPalette();
-    toast('印鑑を登録しました。押したい場所をクリック');
+    const b64=cv.toDataURL('image/png').split(',')[1];
+    const r = await apiPost({action:'addstamp', name:f.name.replace(/\.[a-z0-9]+$/i,''), mime:'image/png', data:b64});
+    if(r.ok){ STAMPS = (r.stamps||[]).map(x=>({id:x.id, name:x.name, dataUrl:`data:${x.mime||'image/png'};base64,${x.data}`})); stampCacheSave(); renderStampPalette(); toast('印鑑を登録しました。押したい場所をクリック'); }
+    else toast(r.error||'登録に失敗しました');
   }catch(_){ toast('画像の読み込みに失敗しました'); }
 };
 $('#ed-tool-text').onclick=()=>setEdTool(edState.tool==='text'?null:'text');
+$('#ed-tool-date').onclick=()=>setEdTool(edState.tool==='date'?null:'date');
 $('#ed-tool-stamp').onclick=()=>{
   const show=$('#ed-stamps').classList.toggle('hidden')===false;
   if(show && !edGetStamps().length){ toast('まず「＋印鑑を追加」で会社印の画像を登録してください', 3500); }
@@ -1602,7 +1672,7 @@ async function exportEditor(){
         const left=parseFloat(obj.style.left)||0, top=parseFloat(obj.style.top)||0;
         if(obj.classList.contains('txt')){
           const f=(parseFloat(obj.dataset.fontpx||'24'))*ratio;
-          ctx.fillStyle='#111'; ctx.textBaseline='top'; ctx.font=`700 ${f}px "Yu Gothic UI","Hiragino Sans",sans-serif`;
+          ctx.fillStyle=obj.dataset.color||'#111'; ctx.textBaseline='top'; ctx.font=`700 ${f}px "Yu Gothic UI","Hiragino Sans",sans-serif`;
           (obj.innerText||'').split('\n').forEach((ln,i)=>ctx.fillText(ln,(left+2)*ratio,(top+2)*ratio+i*f*1.25));
         } else {
           const im=obj.querySelector('img');
@@ -1706,6 +1776,7 @@ async function boot(){
   loadInbox();
   loadSent();
   loadPresets();
+  loadStamps();
   if(!window._auto){
     // 90秒ごとに自動更新（未処理の先読みも都度走る）
     window._auto = setInterval(()=>{ if(!document.hidden){ loadInbox(); loadSent(); } }, 90000);
