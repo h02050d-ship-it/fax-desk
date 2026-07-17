@@ -544,8 +544,24 @@ const GENRES = ['市場','修繕・備品・運送','その他','テスト'];
 
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = './pdf.worker.min.js';
 
+/* 共通SSO: h02050d-ship-it.github.io の他ツールのログインを引き継ぐ */
+const SSO_KEY = 'hayazai_sso_cred';
+const SSO_PEERS = ['hayazai_board_cred','hayazai_seiso_cred','hayazai_rulebook_cred','hayazai_kaizen_cred','notify_creds_v1','seinodesk_cred','faxdesk_cred','orderdesk_cred','nippou_cred'];
+function ssoFind_(){
+  const keys=[SSO_KEY].concat(SSO_PEERS);
+  for(const k of keys){
+    try{ const v=JSON.parse(localStorage.getItem(k)||'null');
+      if(v){ const email=v.email||v.e, pass=v.pass||v.p; if(email&&pass) return {email:String(email),pass:String(pass)}; }
+    }catch(e){}
+  }
+  return null;
+}
+function ssoWrite(email,pass){ try{ localStorage.setItem(SSO_KEY,JSON.stringify({email:email,pass:pass})); }catch(e){} }
+function ssoClear(){ try{ localStorage.removeItem(SSO_KEY); }catch(e){} }
+
 let CRED = null;
 try { CRED = JSON.parse(localStorage.getItem(LSK) || 'null'); } catch(_){}
+if(!(CRED && CRED.email && CRED.pass)) CRED = ssoFind_();
 
 let CONTACTS = [];      // {num, num81, name, addr, genre}
 let INBOX = [];
@@ -582,7 +598,7 @@ async function apiPost(obj){
 async function tryLogin(email, pass){
   CRED = {email, pass};
   const r = await apiGet('contacts').catch(()=>({ok:false}));
-  if(r.ok){ localStorage.setItem(LSK, JSON.stringify(CRED)); CONTACTS = r.contacts||[]; return true; }
+  if(r.ok){ localStorage.setItem(LSK, JSON.stringify(CRED)); ssoWrite(email, pass); CONTACTS = r.contacts||[]; return true; }
   CRED = null; return false;
 }
 $('#g-btn').onclick = async ()=>{
@@ -595,7 +611,7 @@ $('#g-btn').onclick = async ()=>{
   else $('#g-msg').textContent='ログインできませんでした（メール／パスワードをご確認ください）';
 };
 $('#g-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#g-btn').click(); });
-$('#btn-logout').onclick = ()=>{ localStorage.removeItem(LSK); location.reload(); };
+$('#btn-logout').onclick = ()=>{ localStorage.removeItem(LSK); ssoClear(); location.reload(); };
 
 /* ==== 番号ユーティリティ ==== */
 function fmtNum(n){
@@ -2132,7 +2148,7 @@ async function boot(){
     $('#gate').classList.add('hidden');
     const ok = await tryLogin(CRED.email, CRED.pass);
     if(ok) boot();
-    else { localStorage.removeItem(LSK); $('#gate').classList.remove('hidden'); }
+    else { localStorage.removeItem(LSK); ssoClear(); $('#gate').classList.remove('hidden'); }
   }
 })();
 </script>
