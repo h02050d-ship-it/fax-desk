@@ -1459,20 +1459,33 @@ async function selectInbox(item){
   drawInboxPreview(item);
 }
 /* ==== AI読み取り（受信FAX→要約・種別・注文抽出→加工予定表） ==== */
+// AI送信用の高解像度描画（絶対ピクセル幅指定・DPR非依存）
+async function renderFaxCanvasesHiRes(files, targetW, rot, onCanvas){
+  for(const f of files){
+    if(/^image\//.test(f.mime)){
+      const img=await loadImg(`data:${f.mime};base64,${f.data}`);
+      const cv=document.createElement('canvas'); drawRotatedImg(cv, img, rot, targetW); onCanvas(cv);
+    } else {
+      const bytes=b64ToBytes(f.data); const pdf=await pdfjsLib.getDocument({data:bytes.slice()}).promise;
+      for(let p=1;p<=pdf.numPages;p++){
+        const page=await pdf.getPage(p); const vp1=page.getViewport({scale:1, rotation:rot});
+        const vp=page.getViewport({scale: targetW/vp1.width, rotation:rot});
+        const cv=document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height;
+        onCanvas(cv);
+        await page.render({canvasContext:cv.getContext('2d'), viewport:vp, intent:'print'}).promise;
+      }
+    }
+  }
+}
 function aiCacheGet(id){ try{ return JSON.parse(localStorage.getItem('fd_ai_'+id)||'null'); }catch(_){ return null; } }
 function aiCacheSet(id, r){ try{ localStorage.setItem('fd_ai_'+id, JSON.stringify(r)); }catch(_){} }
 async function doAiRead(item){
   const btn = $('#ip-ai'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin"></span>読み取り中…'; }
   try{
-    // 表示中のプレビュー画像（回転反映済み）をPNGで送る。未描画なら描画
-    let canvases = [...document.querySelectorAll('#ip-body canvas')];
-    let imgs = [];
-    if(canvases.length){ imgs = canvases.slice(0,3).map(c=>c.toDataURL('image/png').split(',')[1]); }
-    else {
-      const files = await getFaxFiles(item.msgId); const tmp=[];
-      await renderFaxCanvases(files, 1000, getRot(item.msgId), cv=>tmp.push(cv), ()=>false);
-      imgs = tmp.slice(0,3).map(c=>c.toDataURL('image/png').split(',')[1]);
-    }
+    // AI用に高解像度で描画し直す（回転反映済み）。低解像だと手書きが読めないため
+    const files = await getFaxFiles(item.msgId); const tmp=[];
+    await renderFaxCanvasesHiRes(files, 1600, getRot(item.msgId), cv=>tmp.push(cv));
+    const imgs = tmp.slice(0,3).map(c=>c.toDataURL('image/png').split(',')[1]);
     if(!imgs.length){ toast('画像を取得できませんでした'); return; }
     const r = await apiPost({action:'airead', hint:item.vendor||'', images:imgs});
     if(r.ok){ aiCacheSet(item.msgId, r.result); if(selInboxId===item.msgId) renderAiPanel(item, r.result); }
