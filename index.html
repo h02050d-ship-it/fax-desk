@@ -877,11 +877,13 @@ document.querySelectorAll('.seg div').forEach(el=>{
 let singleCat = '';
 // 会社種別プレフィックスを外した並べ替えキー
 function sortKey(name){
-  return String(name||'').replace(/^[（(]?\s*(株式会社|有限会社|合同会社|合資会社|株|有|合)\s*[）)]?\s*/,'').trim() || String(name||'');
+  return String(name||'').replace(/^[（(]?\s*(株式会社|有限会社|合同会社|合資会社|税理士法人|株|有|合)\s*[）)]?\s*/,'').trim() || String(name||'');
 }
+// 並べ替え・見出しに使う読み（よみがあれば優先、なければ社名から）
+function readingOf(c){ return (c && c.yomi) ? c.yomi : sortKey(c && c.name || ''); }
 // 先頭文字→あいうえお行の見出し
-function kanaRow(name){
-  let c = sortKey(name)[0] || '';
+function kanaRow(reading){
+  let c = String(reading||'')[0] || '';
   c = c.replace(/[ァ-ヶ]/, m=>String.fromCharCode(m.charCodeAt(0)-0x60)); // カタカナ→ひらがな
   const rows = [['あ','あぁいぃうぅえぇおぉ'],['か','かがきぎくぐけげこご'],['さ','さざしじすずせぜそぞ'],['た','ただちぢつづってでとど'],['な','なにぬねの'],['は','はばぱひびぴふぶぷへべぺほぼぽ'],['ま','まみむめも'],['や','やゃゆゅよょ'],['ら','らりるれろ'],['わ','わをん']];
   for(const [head, set] of rows){ if(set.includes(c)) return head; }
@@ -903,13 +905,13 @@ function renderContactList(q){
   const list = $('#c-list'); if(!list) return;
   q = (q||'').trim().toLowerCase();
   let hits = CONTACTS.filter(c => (!singleCat || (c.genre||'その他')===singleCat) &&
-    (!q || c.name.toLowerCase().includes(q)));
+    (!q || c.name.toLowerCase().includes(q) || (c.yomi||'').includes(q)));
   if(!hits.length){ list.innerHTML = `<div class="clist-empty">該当する取引先がありません</div>`; return; }
-  hits.sort((a,b)=>{ const ra=KANA_ORDER.indexOf(kanaRow(a.name)), rb=KANA_ORDER.indexOf(kanaRow(b.name));
-    if(ra!==rb) return ra-rb; return sortKey(a.name).localeCompare(sortKey(b.name),'ja'); });
+  hits.sort((a,b)=>{ const ra=KANA_ORDER.indexOf(kanaRow(readingOf(a))), rb=KANA_ORDER.indexOf(kanaRow(readingOf(b)));
+    if(ra!==rb) return ra-rb; return readingOf(a).localeCompare(readingOf(b),'ja'); });
   let html='', lastRow='';
   for(const c of hits){
-    const row = kanaRow(c.name);
+    const row = kanaRow(readingOf(c));
     if(row!==lastRow){ html += `<div class="chead">${esc(row)}</div>`; lastRow=row; }
     html += `<div class="crow ${selContact&&selContact.num81===c.num81?'sel':''}" data-n="${esc(c.num81)}">
       <span class="cn">${esc(c.name)}</span>
@@ -1083,19 +1085,30 @@ $('#gm-close').onclick = ()=>{ $('#genre-ov').classList.remove('show'); renderGe
 $('#gm-search').addEventListener('input', e=>renderGenreList(e.target.value));
 function renderGenreList(q){
   q = (q||'').trim().toLowerCase();
-  const rows = CONTACTS.filter(c=>!q || c.name.toLowerCase().includes(q) || c.num.includes(q.replace(/[^\d]/g,'')||' '));
+  const rows = CONTACTS.filter(c=>!q || c.name.toLowerCase().includes(q) || (c.yomi||'').includes(q) || c.num.includes(q.replace(/[^\d]/g,'')||' '));
   $('#gm-list').innerHTML = rows.map(c=>`
     <div class="grow">
-      <span class="nm">${esc(c.name)}</span><span class="num">${esc(c.num)}</span>
+      <span class="nm">${esc(c.name)}<br><span style="font-size:11px;color:var(--sub)">よみ: ${esc(c.yomi||'（未設定）')}</span></span>
       <select data-act="genre" data-n="${esc(c.num81)}">
         <option value="">未設定</option>
         ${GENRES.map(g=>`<option ${c.genre===g?'selected':''}>${g}</option>`).join('')}
         ${c.genre && !GENRES.includes(c.genre) ? `<option selected>${esc(c.genre)}</option>` : ''}
       </select>
+      <button class="abtn" data-act="yomi" data-n="${esc(c.num81)}" title="よみを編集">🔤</button>
       <button class="abtn" data-act="mail" data-n="${esc(c.num81)}" title="メールアドレス設定" style="${c.email?'':'opacity:.45'}">📧</button>
       <button class="abtn" data-act="edit" data-n="${esc(c.num81)}" title="名前を変更">✏️</button>
       <button class="abtn" data-act="del" data-n="${esc(c.num81)}" title="削除" style="color:var(--red)">🗑</button>
     </div>`).join('') || '<div class="empty">該当なし</div>';
+  $('#gm-list').querySelectorAll('[data-act="yomi"]').forEach(el=>{
+    el.onclick = async ()=>{
+      const c = CONTACTS.find(x=>x.num81===el.dataset.n); if(!c) return;
+      const y = prompt(`${c.name} のよみ（ひらがな。並び順に使います）`, c.yomi||'');
+      if(y==null) return;
+      const r = await apiPost({action:'editcontact', num:c.num81, yomi:y.trim()});
+      if(r.ok){ c.yomi = y.trim().replace(/[ァ-ヶ]/g,m=>String.fromCharCode(m.charCodeAt(0)-0x60)).toLowerCase(); toast('よみを更新しました'); renderGenreList(q); renderSingleCatChips(); }
+      else toast(r.error||'保存に失敗しました');
+    };
+  });
   $('#gm-list').querySelectorAll('[data-act="genre"]').forEach(el=>{
     el.onchange = async ()=>{
       const c = CONTACTS.find(x=>x.num81===el.dataset.n); if(!c) return;
