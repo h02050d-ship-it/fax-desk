@@ -241,6 +241,13 @@ textarea{resize:vertical; min-height:130px}
 .ai-tbl td{border-bottom:1px solid var(--line); padding:3px 5px}
 .ai-tbl input, .ai-tbl select{border:1px solid var(--line); border-radius:6px; padding:4px 6px; font-size:12.5px; font-family:inherit}
 .ai-actions{display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap}
+.ai-genpan{margin-top:10px; border:1px solid #c7dbfc; border-radius:10px; background:#fff; overflow:hidden}
+.ai-gp-head{background:var(--blue-soft); color:var(--blue); font-weight:800; font-size:13px; padding:6px 12px}
+.ai-gp-row{padding:8px 12px; border-top:1px solid var(--line)}
+.ai-gp-title{font-weight:700; font-size:13px; margin-bottom:5px}
+.ai-gp-grid{display:grid; grid-template-columns:auto 1fr; gap:3px 12px; font-size:12.5px}
+.ai-gp-grid span{color:var(--sub)}
+.ai-gp-note{font-size:11.5px; color:var(--sub); padding:8px 12px; background:var(--gray-soft); line-height:1.6}
 .ai-fix{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap}
 .ai-fix input{flex:1; min-width:180px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:13px; font-family:inherit; background:#fff}
 .ai-fix .abtn{white-space:nowrap; background:var(--ink); color:#fff; border-color:var(--ink)}
@@ -1114,6 +1121,7 @@ function renderGenreList(q){
         ${c.genre && !GENRES.includes(c.genre) ? `<option selected>${esc(c.genre)}</option>` : ''}
       </select>
       <button class="abtn" data-act="yomi" data-n="${esc(c.num81)}" title="よみを編集">🔤</button>
+      <button class="abtn" data-act="aimemo" data-n="${esc(c.num81)}" title="AI読み取りのクセを教える" style="${c.aimemo?'':'opacity:.45'}">📖</button>
       <button class="abtn" data-act="mail" data-n="${esc(c.num81)}" title="メールアドレス設定" style="${c.email?'':'opacity:.45'}">📧</button>
       <button class="abtn" data-act="edit" data-n="${esc(c.num81)}" title="名前を変更">✏️</button>
       <button class="abtn" data-act="del" data-n="${esc(c.num81)}" title="削除" style="color:var(--red)">🗑</button>
@@ -1135,6 +1143,16 @@ function renderGenreList(q){
       const r = await apiPost({action:'genre', num:c.num81, genre:el.value});
       if(r.ok) toast(`${c.name} → ${el.value||'未設定'}`);
       else { c.genre = old; toast('保存に失敗しました'); renderGenreList(q); }
+    };
+  });
+  $('#gm-list').querySelectorAll('[data-act="aimemo"]').forEach(el=>{
+    el.onclick = async ()=>{
+      const c = CONTACTS.find(x=>x.num81===el.dataset.n); if(!c) return;
+      const memo = prompt(`${c.name} のFAXのクセをAIに教える\n（例: 原板の書式「長さ×幅×厚 枚入×山 ㎥単価」。130幅。役物。無節特上小を崩し字で書く 等）`, c.aimemo||'');
+      if(memo==null) return;
+      const r = await apiPost({action:'editcontact', num:c.num81, aimemo:memo});
+      if(r.ok){ c.aimemo = memo; toast(memo.trim()?'AI学習メモを保存しました':'AI学習メモを消しました'); renderGenreList(q); }
+      else toast(r.error||'保存に失敗しました');
     };
   });
   $('#gm-list').querySelectorAll('[data-act="mail"]').forEach(el=>{
@@ -1492,7 +1510,8 @@ async function doAiRead(item, opts){
     await renderFaxCanvasesHiRes(files, 1600, getRot(item.msgId), cv=>tmp.push(cv));
     const imgs = tmp.slice(0,3).map(c=>c.toDataURL('image/png').split(',')[1]);
     if(!imgs.length){ toast('画像を取得できませんでした'); return; }
-    const r = await apiPost({action:'airead', hint:item.vendor||'', images:imgs, correction:opts.correction||'', prev:opts.prev||''});
+    const c = CONTACTS.find(x=>x.num===fmtNum(item.faxNum));
+    const r = await apiPost({action:'airead', hint:item.vendor||'', images:imgs, vendorMemo:(c&&c.aimemo)||'', correction:opts.correction||'', prev:opts.prev||''});
     if(r.ok){ aiCacheSet(item.msgId, r.result); if(selInboxId===item.msgId) renderAiPanel(item, r.result); if(opts.correction) toast('訂正を反映して読み直しました'); }
     else toast('AI読み取り失敗: '+(r.error||''), 5000);
   }catch(err){ toast('AI読み取りエラー: '+(err.message||err), 5000); }
@@ -1527,9 +1546,36 @@ function renderAiPanel(item, res){
       <button class="abtn" id="ai-additem" style="margin-top:6px">＋行を追加</button>
     </div>`;
   }
+  // 原板/仕入案内 の㎥計算（提示㎥単価→120幅換算・束数）
+  let genpanHtml = '';
+  const isGenpan = res.type==='仕入案内' || items.some(it=>it.m3price || it.piecesPerBundle || it.bundles);
+  if(isGenpan && items.length){
+    genpanHtml = `<div class="ai-genpan"><div class="ai-gp-head">🧮 原板 仕入検討（120幅換算・束数の目安）</div>` +
+      items.map((it,i)=>{
+        const th=Number(it.thickness)||0, w=Number(it.width)||0, len=Number(it.length)||0;
+        const per=Number(it.piecesPerBundle)||Number(it.qty)||0, yama=Number(it.bundles)||0;
+        const m3p=Number(it.m3price)||0;
+        const total=per*(yama||1);
+        const vol1=(th&&w&&len)? (th/1000*(w/1000)*(len/1000)) : 0; // 1枚㎥
+        const totM3=vol1*total;
+        const conv120=(m3p&&w>120)? Math.round(m3p*w/120) : m3p; // 120幅換算㎥単価
+        const perBundle = len>=3600?8 : len>=2600?10 : (per||0); // 4m=8/3m=10枚1束
+        const bundles120 = perBundle? Math.ceil(total/perBundle) : 0;
+        return `<div class="ai-gp-row">
+          <div class="ai-gp-title">${esc(it.jushu||'')} ${esc(it.grade||'')} ${th||'?'}×${w||'?'}×${len||'?'}</div>
+          <div class="ai-gp-grid">
+            <span>枚入×山</span><b>${per||'?'}枚 × ${yama||'?'}山 = ${total||'?'}枚</b>
+            <span>総材積</span><b>${totM3?totM3.toFixed(3):'?'} ㎥</b>
+            <span>提示㎥単価</span><b>${m3p?('¥'+m3p.toLocaleString()):'?'} /㎥</b>
+            <span>120幅換算㎥単価</span><b style="color:var(--red)">${conv120?('¥'+conv120.toLocaleString()):'?'} /㎥</b>
+            <span>束数(4m8/3m10)</span><b>${bundles120?(bundles120+'束'):'?'}（1束${perBundle}枚）</b>
+          </div></div>`;
+      }).join('') +
+      `<div class="ai-gp-note">※ 120幅換算 = 提示㎥単価 × 実幅 ÷ 120（130幅を120で使う分の割高を反映）。役物の等級構成(例: 無節9割/特上小1割)・当社販売価格からの利益、現在庫・直近1年の販売数量に照らした発注可否は<b>次の段階（在庫推定ツール連携）</b>で表示します。</div></div>`;
+  }
   const actionBtn = res.type==='注文'
     ? `<button class="btn" id="ai-tokakou">🪵 加工予定表に追加</button>`
-    : res.type==='見積り'
+    : (res.type==='見積り')
     ? `<button class="btn sub" id="ai-quote">💰 見積り返信を作成（下書き）</button>`
     : '';
   el.innerHTML = `
@@ -1541,6 +1587,7 @@ function renderAiPanel(item, res){
       <div class="ai-summary">${esc(res.summary||'').replace(/\n/g,'<br>')}</div>
       ${res.notes?`<div class="ai-notes">📝 ${esc(res.notes)}</div>`:''}
       ${itemsHtml}
+      ${genpanHtml}
       <div class="ai-fix">
         <input id="ai-fix-input" placeholder="✏️ AIの間違いを訂正（例: スノコじゃなくフローリング。杉は20枚。厚15）">
         <button class="abtn" id="ai-refix">🔁 訂正して読み直す</button>
