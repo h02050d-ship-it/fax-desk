@@ -99,6 +99,18 @@ textarea{resize:vertical; min-height:130px}
 .trow:hover{background:var(--gray-soft)}
 .trow input{width:17px; height:17px; accent-color:var(--blue)}
 .trow .num{color:var(--sub); font-size:12.5px; margin-left:auto; white-space:nowrap}
+/* メール対象の表示・管理 */
+.mailcount-btn{border:1px solid var(--blue); background:var(--blue-soft); color:var(--blue); border-radius:999px;
+  padding:3px 12px; font-size:12.5px; font-weight:700; cursor:pointer; font-family:inherit}
+.mailcount-btn:hover{background:#dbe8fd}
+.mt-card{border:1px solid var(--line); border-radius:10px; background:#fff; margin-top:8px; overflow:hidden; max-height:260px; overflow-y:auto}
+.mt-head{background:var(--gray-soft); color:var(--sub); font-size:11.5px; font-weight:800; padding:5px 12px}
+.mt-row{display:flex; align-items:center; gap:8px; padding:6px 12px; border-bottom:1px solid var(--line); font-size:12.5px}
+.mt-row:last-child{border-bottom:none}
+.mt-n{font-weight:700; flex-shrink:0; max-width:40%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.mt-m{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--blue)}
+.mt-edit{padding:2px 8px; font-size:11.5px; flex-shrink:0}
+.mt-empty{padding:14px 12px; text-align:center; color:var(--sub); font-size:12.5px}
 /* 添付 */
 .filelist{margin-top:10px; display:flex; flex-direction:column; gap:16px}
 .att-item{display:flex; flex-direction:column; gap:6px}
@@ -191,7 +203,7 @@ textarea{resize:vertical; min-height:130px}
 .spin{display:inline-block; width:14px; height:14px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:sp 1s linear infinite; vertical-align:-2px; margin-right:6px}
 .spin.dark{border-color:var(--sub); border-top-color:transparent}
 @keyframes sp{to{transform:rotate(360deg)}}
-/* ジャンル管理 */
+/* 取引先管理 */
 .glist{border:1px solid var(--line); border-radius:10px; max-height:380px; overflow:auto; margin-top:10px}
 .grow{display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--line); font-size:13.5px}
 .grow:last-child{border-bottom:none}
@@ -341,7 +353,6 @@ textarea{resize:vertical; min-height:130px}
               <button class="abtn" id="single-mng">👥 取引先管理</button>
             </div>
             <div class="gchips" id="single-cat-chips" style="margin:8px 0"></div>
-            <input class="txt" id="c-search" placeholder="🔍 取引先名で絞り込み…" autocomplete="off">
             <div class="clist" id="c-list"></div>
             <div id="c-selected" style="margin-top:8px" class="hidden">
               <span class="chip"><span id="c-name"></span><span id="c-num" style="font-weight:400"></span><span class="x" id="c-clear">✕</span></span>
@@ -361,9 +372,9 @@ textarea{resize:vertical; min-height:130px}
               <label class="lbl" style="margin:0">📌 定型（宛先＋文面をワンタップでセット）</label>
               <button class="abtn" id="preset-save">＋今の内容を定型に保存</button>
             </div>
-            <div class="gchips" id="preset-chips" style="margin-top:6px; margin-bottom:12px"><span class="hint">（まだ定型がありません。ジャンル・件名・本文を作って保存すると次からワンタップです）</span></div>
+            <div class="gchips" id="preset-chips" style="margin-top:6px; margin-bottom:12px"><span class="hint">（まだ定型がありません。カテゴリ・件名・本文を作って保存すると次からワンタップです）</span></div>
             <div class="row" style="justify-content:space-between">
-              <label class="lbl" style="margin:0">ジャンルを選ぶ → 宛先を確認</label>
+              <label class="lbl" style="margin:0">カテゴリを選ぶ → 宛先を確認</label>
               <button class="abtn" id="btn-genre-mng">👥 取引先管理</button>
             </div>
             <div class="gchips" id="genre-chips" style="margin-top:8px"></div>
@@ -374,11 +385,15 @@ textarea{resize:vertical; min-height:130px}
                 <button class="abtn" id="bulk-none">全解除</button>
               </span>
             </div>
-            <div class="targets" id="target-list"><div class="empty">ジャンルを選択してください</div></div>
-            <label style="display:flex; align-items:center; gap:8px; margin-top:10px; font-size:13.5px; cursor:pointer">
-              <input type="checkbox" id="b-alsomail" style="width:17px;height:17px;accent-color:var(--blue)">
-              📧 メールがある宛先には同時にメールも送る（対象 <span id="b-mailcount">0</span> 件）
-            </label>
+            <div class="targets" id="target-list"><div class="empty">カテゴリを選択してください</div></div>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:10px; font-size:13.5px; flex-wrap:wrap">
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0">
+                <input type="checkbox" id="b-alsomail" style="width:17px;height:17px;accent-color:var(--blue)">
+                📧 メールがある宛先には同時にメールも送る
+              </label>
+              <button type="button" class="mailcount-btn" id="b-mailcount-btn">対象 <b id="b-mailcount">0</b> 件 ▾</button>
+            </div>
+            <div id="mailtargets" class="hidden"></div>
           </div>
 
           <label class="lbl">件名（送付状のタイトルになります）</label>
@@ -495,7 +510,7 @@ textarea{resize:vertical; min-height:130px}
     <input class="txt" id="nc-name" placeholder="例: 株式会社〇〇">
     <label class="lbl">FAX番号</label>
     <input class="txt" id="nc-num" placeholder="例: 053-421-0000" inputmode="tel">
-    <label class="lbl">ジャンル</label>
+    <label class="lbl">カテゴリ</label>
     <select id="nc-genre"></select>
     <div class="hint">FAX台帳（取引先マスタ）に登録され、受信FAXの自動仕分けにも反映されます。</div>
     <div class="row" style="justify-content:flex-end; margin-top:16px">
@@ -923,9 +938,9 @@ function renderSingleCatChips(){
   wrap.innerHTML = `<span class="gchip ${singleCat===''?'on':''}" data-g="">すべて ${CONTACTS.length}</span>` +
     GENRES.map(g=>`<span class="gchip ${singleCat===g?'on':''}" data-g="${esc(g)}">${esc(g)} ${counts[g]||0}</span>`).join('');
   wrap.querySelectorAll('.gchip').forEach(el=>{
-    el.onclick = ()=>{ singleCat = el.dataset.g; renderSingleCatChips(); renderContactList($('#c-search').value); };
+    el.onclick = ()=>{ singleCat = el.dataset.g; renderSingleCatChips(); };
   });
-  renderContactList($('#c-search') ? $('#c-search').value : '');
+  renderContactList('');
 }
 function renderContactList(q){
   const list = $('#c-list'); if(!list) return;
@@ -963,7 +978,6 @@ function selectContact(c){
   updateDestPreview();
 }
 $('#c-clear').onclick = ()=>{ selContact=null; $('#c-selected').classList.add('hidden'); $('#s-mailwrap').classList.add('hidden'); document.querySelectorAll('#c-list .crow.sel').forEach(el=>el.classList.remove('sel')); updateDestPreview(); };
-$('#c-search').addEventListener('input', e=>renderContactList(e.target.value));
 $('#single-mng').onclick = ()=>{ renderGenreList(''); $('#genre-ov').classList.add('show'); };
 $('#s-manual').addEventListener('input', ()=>{ if($('#s-manual').value.trim() && selContact){ selContact=null; $('#c-selected').classList.add('hidden'); document.querySelectorAll('#c-list .crow.sel').forEach(el=>el.classList.remove('sel')); } updateDestPreview(); });
 
@@ -1034,7 +1048,7 @@ function genreCounts(){
 function renderGenreChips(){
   const counts = genreCounts();
   const keys = [...GENRES.filter(g=>counts[g]), ...Object.keys(counts).filter(g=>!GENRES.includes(g) && g!=='未設定'), ...(counts['未設定']?['未設定']:[])];
-  $('#genre-chips').innerHTML = keys.map(g=>`<span class="gchip ${bulkGenre===g?'on':''}" data-g="${esc(g)}">${esc(g)} ${counts[g]}</span>`).join('') || '<span class="hint">ジャンル未設定です。「🏷️ ジャンル管理」から設定してください。</span>';
+  $('#genre-chips').innerHTML = keys.map(g=>`<span class="gchip ${bulkGenre===g?'on':''}" data-g="${esc(g)}">${esc(g)} ${counts[g]}</span>`).join('') || '<span class="hint">カテゴリ未設定です。「🏷️ 取引先管理」から設定してください。</span>';
   document.querySelectorAll('#genre-chips .gchip').forEach(el=>{
     el.onclick = ()=>{
       bulkGenre = el.dataset.g;
@@ -1046,7 +1060,7 @@ function renderGenreChips(){
 }
 function renderTargets(){
   const list = $('#target-list');
-  if(!bulkGenre){ list.innerHTML = '<div class="empty">ジャンルを選択してください</div>'; $('#bulk-count').textContent='宛先 0件'; updateBulkCount(); return; }
+  if(!bulkGenre){ list.innerHTML = '<div class="empty">カテゴリを選択してください</div>'; $('#bulk-count').textContent='宛先 0件'; updateBulkCount(); return; }
   const targets = CONTACTS.filter(c=>(c.genre||'未設定')===bulkGenre);
   list.innerHTML = targets.map(c=>`
     <label class="trow"><input type="checkbox" data-n="${esc(c.num81)}" ${bulkChecked.has(c.num81)?'checked':''}>
@@ -1056,12 +1070,54 @@ function renderTargets(){
   });
   updateBulkCount();
 }
-function bulkMailCount(){ return CONTACTS.filter(c=>bulkChecked.has(c.num81) && c.email).length; }
+function bulkMailTargets(){ return CONTACTS.filter(c=>bulkChecked.has(c.num81) && c.email); }
+function bulkMailCount(){ return bulkMailTargets().length; }
 function updateBulkCount(){
   $('#bulk-count').textContent = `宛先 ${bulkChecked.size}件`;
   const mc = $('#b-mailcount'); if(mc) mc.textContent = bulkMailCount();
+  if(!$('#mailtargets').classList.contains('hidden')) renderMailTargets();
   renderCover();
 }
+// メール対象の一覧＋管理（クリックで開閉）
+function renderMailTargets(){
+  const el = $('#mailtargets'); if(!el) return;
+  const withMail = bulkMailTargets();
+  const noMail = CONTACTS.filter(c=>bulkChecked.has(c.num81) && !c.email);
+  el.innerHTML = `
+    <div class="mt-card">
+      <div class="mt-head">📧 メールも送る対象（${withMail.length}件）</div>
+      ${withMail.length ? withMail.map(c=>`
+        <div class="mt-row">
+          <span class="mt-n">${esc(c.name)}</span>
+          <span class="mt-m">${esc(c.email)}</span>
+          <button class="abtn mt-edit" data-n="${esc(c.num81)}" title="メールを編集">✏️</button>
+        </div>`).join('') : '<div class="mt-empty">選択中の宛先にメール登録がありません</div>'}
+      ${noMail.length ? `<div class="mt-head" style="border-top:1px solid var(--line)">✉️ メール未登録（FAXのみ・${noMail.length}件）</div>` +
+        noMail.map(c=>`
+        <div class="mt-row">
+          <span class="mt-n">${esc(c.name)}</span>
+          <span class="mt-m" style="color:var(--sub)">未登録</span>
+          <button class="abtn mt-edit" data-n="${esc(c.num81)}" title="メールを登録">＋登録</button>
+        </div>`).join('') : ''}
+    </div>`;
+  el.querySelectorAll('.mt-edit').forEach(b=>{
+    b.onclick = async ()=>{
+      const c = CONTACTS.find(x=>x.num81===b.dataset.n); if(!c) return;
+      const mail = prompt(`${c.name} のメールアドレス（複数はカンマ区切り／空で解除）`, c.email||'');
+      if(mail==null) return;
+      const r = await apiPost({action:'editcontact', num:c.num81, email:mail.trim()});
+      if(r.ok){ c.email = mail.trim(); toast(mail.trim()?'メールを設定しました':'メールを解除しました'); renderTargets(); renderMailTargets(); }
+      else toast(r.error||'保存に失敗しました');
+    };
+  });
+}
+$('#b-mailcount-btn').onclick = ()=>{
+  const el = $('#mailtargets');
+  const show = el.classList.contains('hidden');
+  el.classList.toggle('hidden', !show);
+  $('#b-mailcount-btn').innerHTML = `対象 <b id="b-mailcount">${bulkMailCount()}</b> 件 ${show?'▴':'▾'}`;
+  if(show) renderMailTargets();
+};
 $('#bulk-all').onclick = ()=>{ if(!bulkGenre) return; bulkChecked = new Set(CONTACTS.filter(c=>(c.genre||'未設定')===bulkGenre).map(c=>c.num81)); renderTargets(); };
 $('#bulk-none').onclick = ()=>{ bulkChecked.clear(); renderTargets(); };
 
@@ -1072,7 +1128,7 @@ async function loadPresets(){
 }
 function renderPresetChips(){
   const wrap = $('#preset-chips'); if(!wrap) return;
-  if(!PRESETS.length){ wrap.innerHTML = '<span class="hint">（まだ定型がありません。ジャンル・件名・本文を作って保存すると次からワンタップです）</span>'; return; }
+  if(!PRESETS.length){ wrap.innerHTML = '<span class="hint">（まだ定型がありません。カテゴリ・件名・本文を作って保存すると次からワンタップです）</span>'; return; }
   wrap.innerHTML = PRESETS.map(p=>`<span class="gchip" data-id="${esc(p.id)}" title="${esc(p.subject||'')}">📌 ${esc(p.name)} <span data-del="${esc(p.id)}" style="margin-left:4px; opacity:.6">✕</span></span>`).join('');
   wrap.querySelectorAll('.gchip').forEach(el=>{
     el.onclick = async e=>{
@@ -1097,7 +1153,7 @@ function applyPreset(p){
   toast(`📌「${p.name}」をセットしました（${bulkGenre} ${bulkChecked.size}件）`);
 }
 $('#preset-save').onclick = async ()=>{
-  if(!bulkGenre){ toast('まずジャンルを選んでください'); return; }
+  if(!bulkGenre){ toast('まずカテゴリを選んでください'); return; }
   const name = prompt('定型の名前を入力してください（例: 市場一括通知）', bulkGenre + '一括');
   if(name==null || !name.trim()) return;
   const r = await apiPost({action:'savepreset', name:name.trim(), genre:bulkGenre, subject:$('#s-subject').value.trim(), body:stripSig($('#s-body').value)});
@@ -1105,7 +1161,7 @@ $('#preset-save').onclick = async ()=>{
   else toast(r.error||'保存に失敗しました');
 };
 
-/* ==== ジャンル管理 ==== */
+/* ==== 取引先管理 ==== */
 $('#btn-genre-mng').onclick = ()=>{ renderGenreList(''); $('#genre-ov').classList.add('show'); };
 $('#gm-close').onclick = ()=>{ $('#genre-ov').classList.remove('show'); renderGenreChips(); };
 $('#gm-search').addEventListener('input', e=>renderGenreList(e.target.value));
