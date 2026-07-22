@@ -1766,12 +1766,27 @@ async function printFax(item){
     setTimeout(doPrint, 1200);
   }catch(err){ toast('印刷準備に失敗: '+(err.message||err)); try{ w.close(); }catch(_){} }
 }
-/* ==== 受信プレビューのズーム（100%＝右ペイン幅いっぱい・localStorage記憶） ==== */
-const IP_ZOOMS = [60, 80, 100, 125, 150, 200, 300];
-let ipZoom = (function(){ const v = Number(localStorage.getItem('fd_ipzoom')); return IP_ZOOMS.includes(v) ? v : 100; })();
+/* ==== 受信プレビューのズーム（既定「全体」＝縦がスクロールなしで収まる最大・localStorage記憶） ==== */
+const IP_ZOOMS = ['fit', 60, 80, 100, 125, 150, 200, 300];
+let ipZoom = (function(){
+  const v = localStorage.getItem('fd_ipzoom2');
+  if(v === 'fit') return 'fit';
+  const n = Number(v); return IP_ZOOMS.includes(n) ? n : 'fit';
+})();
+// 1ページ目の縦がプレビュー枠に丸ごと入る幅(px)を計算
+function ipFitWidth(){
+  const body = $('#ip-body'); if(!body) return 500;
+  let ratio = 210/297; // A4縦を既定に、描画済みなら実寸比
+  const cv = body.querySelector('canvas, img');
+  if(cv){ const w = cv.width || cv.naturalWidth, h = cv.height || cv.naturalHeight; if(w && h) ratio = w/h; }
+  const availH = Math.max(200, window.innerHeight - body.getBoundingClientRect().top - 28 - 14 - 8); // padding+下マージン+余白
+  const paneW = Math.max(200, body.clientWidth - 28);
+  return Math.min(Math.floor(availH * ratio), paneW);
+}
 function applyIpZoom(){
-  const body = $('#ip-body'); if(body) body.style.setProperty('--ipw', ipZoom + '%');
-  const lv = $('#ip-zoomlv'); if(lv) lv.textContent = ipZoom + '%';
+  const body = $('#ip-body');
+  if(body) body.style.setProperty('--ipw', ipZoom === 'fit' ? ipFitWidth() + 'px' : ipZoom + '%');
+  const lv = $('#ip-zoomlv'); if(lv) lv.textContent = ipZoom === 'fit' ? '全体' : ipZoom + '%';
   const i = IP_ZOOMS.indexOf(ipZoom);
   const out = $('#ip-zoomout'), zin = $('#ip-zoomin');
   if(out) out.disabled = (i<=0);
@@ -1781,9 +1796,10 @@ function stepIpZoom(d){
   const i = IP_ZOOMS.indexOf(ipZoom) + d;
   if(i<0 || i>=IP_ZOOMS.length) return;
   ipZoom = IP_ZOOMS[i];
-  try{ localStorage.setItem('fd_ipzoom', String(ipZoom)); }catch(_){}
+  try{ localStorage.setItem('fd_ipzoom2', String(ipZoom)); }catch(_){}
   applyIpZoom();
 }
+window.addEventListener('resize', ()=>{ if(ipZoom==='fit') applyIpZoom(); });
 async function drawInboxPreview(item){
   const body = $('#ip-body'); if(!body) return;
   body.innerHTML = '<div class="ip-empty"><span class="spin dark"></span> 読み込み中…</div>';
