@@ -25,6 +25,8 @@ header{background:#fff; border-bottom:1px solid var(--line); position:sticky; to
 .iconbtn{border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 12px; cursor:pointer; font-size:13px; color:var(--sub)}
 .iconbtn:hover{background:var(--gray-soft)}
 main{max-width:1180px; margin:0 auto; padding:14px 16px 90px}
+/* 受信FAX表示中はページ幅の上限を外してプレビューを最大化 */
+main:has(#tab-inbox:not(.hidden)){max-width:none}
 .tabs{display:flex; gap:6px; margin-bottom:14px}
 .tab{flex:1; text-align:center; padding:10px 4px; border-radius:10px; border:1px solid var(--line);
   background:#fff; cursor:pointer; font-weight:700; font-size:14px; color:var(--sub); position:relative}
@@ -217,7 +219,7 @@ textarea{resize:vertical; min-height:130px}
 .preview-stack{display:flex; flex-direction:column; gap:14px}
 .preview-label{font-size:12px; font-weight:700; color:var(--sub); text-align:center}
 /* 受信2カラム */
-.inbox-2col{display:grid; grid-template-columns:minmax(270px,350px) minmax(0,1fr); gap:16px; align-items:start}
+.inbox-2col{display:grid; grid-template-columns:minmax(220px,248px) minmax(0,1fr); gap:12px; align-items:start}
 .inbox-left{display:flex; flex-direction:column; gap:10px}
 .ilist{border:1px solid var(--line); border-radius:12px; background:#fff; overflow-y:auto; max-height:calc(100vh - 210px)}
 .irow{display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--line); cursor:pointer}
