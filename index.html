@@ -1791,6 +1791,16 @@ function ipFitWidth(){
 function applyIpZoom(){
   const body = $('#ip-body');
   if(body) body.style.setProperty('--ipw', ipZoom === 'fit' ? ipFitWidth() + 'px' : ipZoom + '%');
+  // 「全体」時は白枠(ペイン)もFAX幅に合わせて内側に縮める（左右の無駄な余白をなくす）
+  const pane = $('#inbox-preview');
+  if(pane){
+    if(ipZoom === 'fit' && body && body.querySelector('canvas, img')){
+      pane.style.width = Math.max(560, ipFitWidth() + 30) + 'px';
+      pane.style.maxWidth = '100%';
+    } else {
+      pane.style.width = ''; pane.style.maxWidth = '';
+    }
+  }
   const lv = $('#ip-zoomlv'); if(lv) lv.textContent = ipZoom === 'fit' ? '全体' : ipZoom + '%';
   const i = IP_ZOOMS.indexOf(ipZoom);
   const out = $('#ip-zoomout'), zin = $('#ip-zoomin');
