@@ -289,7 +289,7 @@ textarea{resize:vertical; min-height:130px}
 .ed-stamp-add{flex-shrink:0; width:56px; height:56px; border:1.5px dashed #3a4761; border-radius:8px; background:#243149; color:#9fb0c9; cursor:pointer; font-size:11px; font-weight:700}
 .ed-hint{color:#9fb0c9; font-size:12px; padding:0 6px}
 .ed-canvas{flex:1; overflow:auto; padding:16px; -webkit-overflow-scrolling:touch}
-.ed-pages{max-width:760px; margin:0 auto; display:flex; flex-direction:column; gap:14px}
+.ed-pages{max-width:1100px; margin:0 auto; display:flex; flex-direction:column; gap:14px}
 .ed-page{position:relative; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,.4); border-radius:2px; touch-action:none}
 .ed-page > canvas{width:100%; display:block; border-radius:2px}
 .ed-obj{position:absolute; cursor:move; touch-action:none; box-sizing:border-box}
@@ -1504,6 +1504,11 @@ function dotColor(st){ return st==='未対応'?'#dc2626':st==='要返信'?'#d977
 function renderInbox(){
   renderInboxFilters();
   const rows = INBOX.filter(r=>inboxFilter==='all' || r.status===inboxFilter);
+  // 選択中のFAXが絞り込みから外れたらプレビューも消す（残ると紛らわしい）
+  if(selInboxId && !rows.some(r=>r.msgId===selInboxId)){
+    selInboxId = null;
+    $('#inbox-preview').innerHTML = '<div class="ip-empty">← 左の一覧からFAXを選ぶと<br>ここに大きく表示されます</div>';
+  }
   if(!rows.length){ $('#inbox-list').innerHTML = '<div class="empty">該当する受信FAXはありません</div>'; return; }
   $('#inbox-list').innerHTML = rows.map(r=>`
     <div class="irow ${r.msgId===selInboxId?'sel':''}" data-id="${esc(r.msgId)}">
@@ -1808,7 +1813,11 @@ async function drawInboxPreview(item){
     if(selInboxId!==item.msgId) return;
     body.innerHTML = '';
     // 拡大してもボケないよう1600px相当で描画し、表示サイズはCSS(--ipw)側で可変にする
-    await renderFaxCanvasesHiRes(files, 1600, getRot(item.msgId), cv=>body.appendChild(cv), ()=>selInboxId!==item.msgId);
+    await renderFaxCanvasesHiRes(files, 1600, getRot(item.msgId), cv=>{
+      cv.style.cursor='zoom-in'; cv.title='クリックで編集画面を開く（大きく確認できます）';
+      cv.onclick=()=>openEditor(item);
+      body.appendChild(cv);
+    }, ()=>selInboxId!==item.msgId);
     applyIpZoom();
   }catch(err){ body.innerHTML = `<div class="ip-empty">読み込みに失敗しました<br>${esc(err.message||err)}</div>`; }
 }
@@ -1891,7 +1900,7 @@ async function openEditor(item){
 async function renderEditorPages(){
   const files=edState.files, rot=edState.rot;
   $('#ed-pages').innerHTML=''; edState.pages=[]; edState.history=[];
-  const DISP=720, DPR=Math.min(2, window.devicePixelRatio||1);
+  const DISP=1100, DPR=Math.min(2, window.devicePixelRatio||1);
   for(const f of files){
     if(/^image\//.test(f.mime)){
       const img=await loadImg(`data:${f.mime};base64,${f.data}`);
