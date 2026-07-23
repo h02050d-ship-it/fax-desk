@@ -1785,10 +1785,13 @@ function ipFitWidth(){
   const cv = body.querySelector('canvas, img');
   if(cv){ const w = cv.width || cv.naturalWidth, h = cv.height || cv.naturalHeight; if(w && h) ratio = w/h; }
   const availH = Math.max(200, window.innerHeight - body.getBoundingClientRect().top - 28 - 14 - 8); // padding+下マージン+余白
-  const paneW = Math.max(200, body.clientWidth - 28);
-  return Math.min(Math.floor(availH * ratio), paneW);
+  // 幅の上限は「今の(縮めた)枠」ではなく2カラムの使える幅いっぱいで判定（横向きFAXが小さくなるのを防ぐ）
+  const grid = document.querySelector('.inbox-2col'), left = document.querySelector('.inbox-left');
+  const maxW = (grid && left) ? Math.max(300, grid.clientWidth - left.offsetWidth - 12 - 30)
+                              : Math.max(300, body.clientWidth - 28);
+  return Math.min(Math.floor(availH * ratio), maxW);
 }
-function applyIpZoom(){
+function applyIpZoom(isRepass){
   const body = $('#ip-body');
   if(body) body.style.setProperty('--ipw', ipZoom === 'fit' ? ipFitWidth() + 'px' : ipZoom + '%');
   // 「全体」時は白枠(ペイン)もFAX幅に合わせて内側に縮める（左右の無駄な余白をなくす）
@@ -1797,6 +1800,8 @@ function applyIpZoom(){
     if(ipZoom === 'fit' && body && body.querySelector('canvas, img')){
       pane.style.width = Math.max(560, ipFitWidth() + 30) + 'px';
       pane.style.maxWidth = '100%';
+      // 枠幅が変わるとバーの折返し＝本文の開始位置も変わるので、1回だけ測り直して確定
+      if(!isRepass) requestAnimationFrame(()=>applyIpZoom(true));
     } else {
       pane.style.width = ''; pane.style.maxWidth = '';
     }
