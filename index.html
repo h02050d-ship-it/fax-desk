@@ -896,7 +896,7 @@ function renderViewerFoot(){
       if(!r.ok) toast('メモの保存に失敗しました');
     };
     $('#vf-reply').onclick = ()=>{ closeViewer(); prefillReply(item); };
-    $('#vf-dl').onclick = ()=>downloadFax(item.msgId, item.vendor||item.faxNum);
+    $('#vf-dl').onclick = ()=>downloadFax(item.msgId, item.vendor||item.faxNum, item.date);
   } else {
     f.innerHTML = `
       <span class="pill ${sentPillClass(item.status)}">${esc(item.status||'')}</span>
@@ -904,21 +904,27 @@ function renderViewerFoot(){
       <button class="abtn primary" id="vf-reuse">↪️ 同じ内容で再送準備</button>
       ${item.srcMsgId?'<button class="abtn" id="vf-dl">⬇️ 保存</button>':''}`;
     $('#vf-reuse').onclick = ()=>{ closeViewer(); reuseSent(item); };
-    const dl = $('#vf-dl'); if(dl) dl.onclick = ()=>downloadFax(item.srcMsgId, item.vendor||item.faxNum);
+    const dl = $('#vf-dl'); if(dl) dl.onclick = ()=>downloadFax(item.srcMsgId, item.vendor||item.faxNum, item.date);
   }
 }
 function closeViewer(){ $('#viewer').classList.remove('show'); document.body.style.overflow=''; viewerCtx=null; }
 $('#v-close').onclick = closeViewer;
 $('#viewer').addEventListener('click', e=>{ if(e.target.id==='viewer') closeViewer(); });
 document.addEventListener('keydown', e=>{ if(e.key==='Escape' && $('#viewer').classList.contains('show')) closeViewer(); });
-async function downloadFax(id, label){
+async function downloadFax(id, label, dateVal){
   try{
+    // ファイル名は FAX_年月日_取引先名（eFax元添付の連番名は使わない）
+    const d = dateVal ? new Date(dateVal) : null;
+    const ymd = (d && !isNaN(d)) ? `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}` : '';
+    const safe = String(label||'').replace(/[\\/:*?"<>|\s　]/g,'').slice(0,40) || '取引先不明';
+    const base = 'FAX_' + (ymd ? ymd + '_' : '') + safe;
     const files = await getFaxFiles(id);
     files.forEach((f,i)=>{
       const bytes = b64ToBytes(f.data);
       const url = URL.createObjectURL(new Blob([bytes], {type:f.mime}));
+      const ext = (f.name && f.name.lastIndexOf('.') > 0) ? f.name.slice(f.name.lastIndexOf('.')) : (/pdf/.test(f.mime) ? '.pdf' : '');
       const a = document.createElement('a');
-      a.href = url; a.download = f.name || `${label}_${i+1}.pdf`;
+      a.href = url; a.download = base + (files.length > 1 ? `_${i+1}` : '') + ext;
       a.click();
       setTimeout(()=>URL.revokeObjectURL(url), 30000);
     });
@@ -1555,7 +1561,7 @@ async function selectInbox(item){
   };
   $('#ip-reply').onclick = ()=>prefillReply(item);
   $('#ip-edit').onclick = ()=>openEditor(item);
-  $('#ip-dl').onclick = ()=>downloadFax(item.msgId, item.vendor||item.faxNum);
+  $('#ip-dl').onclick = ()=>downloadFax(item.msgId, item.vendor||item.faxNum, item.date);
   $('#ip-print').onclick = ()=>printFax(item);
   $('#ip-rot').onclick = ()=>{ setRot(item.msgId, getRot(item.msgId)+90); drawInboxPreview(item); };
   $('#ip-zoomin').onclick  = ()=>stepIpZoom(1);
