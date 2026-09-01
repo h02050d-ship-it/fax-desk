@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>FAXデスク｜林材木店</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%232563eb'/%3E%3Ctext x='50' y='76' font-size='68' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='bold'%3EF%3C/text%3E%3C/svg%3E">
-<script src="./pdf.min.js"></script>
+<script src="./pdf.min.js" defer></script>
 <style>
 :root{
   --bg:#f4f6f9; --card:#fff; --ink:#1c2733; --sub:#68788c; --line:#e3e9f0;
@@ -550,7 +550,15 @@ const API_URL = "https://script.google.com/macros/s/AKfycbxQCf2HVfLjUAzOYXJHzzhq
 const LSK = 'faxdesk_cred';
 const GENRES = ['市場','修繕・備品・運送','その他','テスト'];
 
-if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = './pdf.worker.min.js';
+/* pdf.min.jsはdefer読み込み＝描画をブロックしない。使う直前にpdfLib()でロード完了を待つ */
+let _pdfWorkerSet = false;
+function pdfLib(){
+  return new Promise(res=>{
+    const ok = ()=>{ if(!_pdfWorkerSet){ pdfjsLib.GlobalWorkerOptions.workerSrc='./pdf.worker.min.js'; _pdfWorkerSet=true; } res(window.pdfjsLib); };
+    if(window.pdfjsLib) return ok();
+    const t = setInterval(()=>{ if(window.pdfjsLib){ clearInterval(t); ok(); } }, 50);
+  });
+}
 
 /* 共通SSO: h02050d-ship-it.github.io の他ツールのログインを引き継ぐ */
 const SSO_KEY = 'hayazai_sso_cred';
@@ -606,7 +614,12 @@ async function apiPost(obj){
 async function tryLogin(email, pass){
   CRED = {email, pass};
   const r = await apiGet('contacts').catch(()=>({ok:false}));
-  if(r.ok){ localStorage.setItem(LSK, JSON.stringify(CRED)); ssoWrite(email, pass); CONTACTS = r.contacts||[]; return true; }
+  if(r.ok){
+    localStorage.setItem(LSK, JSON.stringify(CRED)); ssoWrite(email, pass);
+    CONTACTS = r.contacts||[];
+    try{ localStorage.setItem('fd_contacts', JSON.stringify(CONTACTS)); }catch(_){}
+    return true;
+  }
   CRED = null; return false;
 }
 $('#g-btn').onclick = async ()=>{
@@ -721,7 +734,7 @@ async function renderFaxCanvases(files, cssWidth, rot, onCanvas, abort){
       const cv=document.createElement('canvas'); drawRotatedImg(cv, img, rot, targetW); cv.style.width='100%';
       onCanvas(cv);
     } else {
-      const bytes=b64ToBytes(f.data); const pdf=await pdfjsLib.getDocument({data:bytes.slice()}).promise;
+      const bytes=b64ToBytes(f.data); const pdf=await (await pdfLib()).getDocument({data:bytes.slice()}).promise;
       for(let p=1;p<=pdf.numPages;p++){
         if(abort && abort()) return;
         const page=await pdf.getPage(p); const vp1=page.getViewport({scale:1, rotation:rot});
@@ -734,7 +747,7 @@ async function renderFaxCanvases(files, cssWidth, rot, onCanvas, abort){
   }
 }
 async function renderPdfPage(bytes, canvas, targetWidth, pageNo=1){
-  const pdf = await pdfjsLib.getDocument({data: bytes.slice()}).promise;
+  const pdf = await (await pdfLib()).getDocument({data: bytes.slice()}).promise;
   const page = await pdf.getPage(pageNo);
   const vp1 = page.getViewport({scale:1});
   const scale = targetWidth / vp1.width;
@@ -859,7 +872,7 @@ function openViewer(kind, item){
           pages.appendChild(img);
         } else {
           const bytes = b64ToBytes(f.data);
-          const pdf = await pdfjsLib.getDocument({data: bytes.slice()}).promise;
+          const pdf = await (await pdfLib()).getDocument({data: bytes.slice()}).promise;
           for(let p=1; p<=pdf.numPages; p++){
             const page = await pdf.getPage(p);
             const vp1 = page.getViewport({scale:1});
@@ -1326,7 +1339,7 @@ async function renderAttach(file, idx, token){
     if(isPdf){
       const buf = new Uint8Array(await file.arrayBuffer());
       if(token!==attachToken) return;
-      const pdf = await pdfjsLib.getDocument({data: buf.slice()}).promise;
+      const pdf = await (await pdfLib()).getDocument({data: buf.slice()}).promise;
       if(token!==attachToken) return;
       holder.innerHTML = '';
       const w = Math.min(520, 560) * Math.min(2, window.devicePixelRatio||1);
@@ -1583,7 +1596,7 @@ async function renderFaxCanvasesHiRes(files, targetW, rot, onCanvas, abort){
       const img=await loadImg(`data:${f.mime};base64,${f.data}`);
       const cv=document.createElement('canvas'); drawRotatedImg(cv, img, rot, targetW); onCanvas(cv);
     } else {
-      const bytes=b64ToBytes(f.data); const pdf=await pdfjsLib.getDocument({data:bytes.slice()}).promise;
+      const bytes=b64ToBytes(f.data); const pdf=await (await pdfLib()).getDocument({data:bytes.slice()}).promise;
       for(let p=1;p<=pdf.numPages;p++){
         if(abort && abort()) return;
         const page=await pdf.getPage(p); const vp1=page.getViewport({scale:1, rotation:rot});
@@ -1930,7 +1943,7 @@ async function renderEditorPages(){
       const cv=addEdPage(DISP, Math.round(DISP*(swap?iw:ih)/(swap?ih:iw)), DPR);
       drawRotatedImg(cv, img, rot, cv.width);
     } else {
-      const bytes=b64ToBytes(f.data); const pdf=await pdfjsLib.getDocument({data:bytes.slice()}).promise;
+      const bytes=b64ToBytes(f.data); const pdf=await (await pdfLib()).getDocument({data:bytes.slice()}).promise;
       for(let p=1;p<=pdf.numPages;p++){
         const page=await pdf.getPage(p); const vp1=page.getViewport({scale:1, rotation:rot});
         const cv=addEdPage(DISP, Math.round(DISP*vp1.height/vp1.width), DPR);
@@ -2209,7 +2222,9 @@ async function boot(){
     const cs = JSON.parse(localStorage.getItem('fd_sent')||'null');
     if(cs && cs.length){ SENT = cs; SENT._loaded = true; }
   }catch(_){}
-  if(!CONTACTS.length){ const c = await apiGet('contacts').catch(()=>null); if(c && c.ok) CONTACTS = c.contacts; }
+  // 取引先もキャッシュ即表示（最新はtryLoginが裏で取得してrenderSingleCatChipsを再実行）
+  if(!CONTACTS.length){ try{ CONTACTS = JSON.parse(localStorage.getItem('fd_contacts')||'[]'); }catch(_){ CONTACTS = []; } }
+  if(!CONTACTS.length){ const c = await apiGet('contacts').catch(()=>null); if(c && c.ok){ CONTACTS = c.contacts; try{ localStorage.setItem('fd_contacts', JSON.stringify(CONTACTS)); }catch(_){} } }
   renderSingleCatChips();
   loadInbox();
   loadSent();
@@ -2226,8 +2241,9 @@ async function boot(){
 (async function(){
   if(CRED && CRED.email){
     $('#gate').classList.add('hidden');
-    const ok = await tryLogin(CRED.email, CRED.pass);
-    if(ok) boot();
+    boot();   // 認証確認を待たずキャッシュで即表示（v35高速化）
+    const ok = await tryLogin(CRED.email, CRED.pass);   // 裏で認証＋取引先の最新化
+    if(ok){ renderSingleCatChips(); }
     else { localStorage.removeItem(LSK); ssoClear(); $('#gate').classList.remove('hidden'); }
   }
 })();
