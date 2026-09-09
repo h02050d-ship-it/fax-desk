@@ -472,7 +472,8 @@ textarea{resize:vertical; min-height:130px}
   <div class="v-head">
     <span class="t" id="v-title"></span>
     <span class="m" id="v-meta"></span>
-    <button class="v-close" id="v-close">✕ 閉じる</button>
+    <button class="v-close" id="v-dl" style="margin-left:auto" title="PDFで保存">⬇️ 保存</button>
+    <button class="v-close" id="v-close" style="margin-left:0">✕ 閉じる</button>
   </div>
   <div class="v-body"><div class="v-pages" id="v-pages"></div></div>
   <div class="v-foot"><div class="v-foot-in" id="v-foot"></div></div>
@@ -487,6 +488,7 @@ textarea{resize:vertical; min-height:130px}
     <button class="ed-tool" id="ed-tool-date">📅 日付</button>
     <button class="ed-tool ghost" id="ed-rotate">🔄 回転</button>
     <button class="ed-tool ghost" id="ed-undo">↩︎ 元に戻す</button>
+    <button class="ed-tool ghost" id="ed-dl" title="このFAXをPDFで保存（FAX_日付_取引先名）">⬇️ 保存</button>
     <span class="ed-hint" id="ed-status"></span>
     <span class="ed-sp"></span>
     <button class="ed-tool ed-cancel" id="ed-cancel">キャンセル</button>
@@ -836,6 +838,8 @@ function openViewer(kind, item){
   document.body.style.overflow = 'hidden';
 
   const id = kind==='inbox' ? item.msgId : item.srcMsgId;
+  const vdl = $('#v-dl'); vdl.style.display = id ? '' : 'none';
+  vdl.onclick = ()=>downloadFax(id, item.vendor||item.faxNum, item.date, kind==='inbox' ? item : null);
   if(!id){
     pages.innerHTML = `<div class="v-detail">
       <div class="kv">
@@ -915,7 +919,7 @@ function renderViewerFoot(){
       if(!r.ok) toast('メモの保存に失敗しました');
     };
     $('#vf-reply').onclick = ()=>{ closeViewer(); prefillReply(item); };
-    $('#vf-dl').onclick = ()=>downloadFax(item.msgId, item.vendor||item.faxNum, item.date);
+    $('#vf-dl').onclick = ()=>downloadFax(item.msgId, item.vendor||item.faxNum, item.date, item);
   } else {
     f.innerHTML = `
       <span class="pill ${sentPillClass(item.status)}">${esc(item.status||'')}</span>
@@ -930,8 +934,13 @@ function closeViewer(){ $('#viewer').classList.remove('show'); document.body.sty
 $('#v-close').onclick = closeViewer;
 $('#viewer').addEventListener('click', e=>{ if(e.target.id==='viewer') closeViewer(); });
 document.addEventListener('keydown', e=>{ if(e.key==='Escape' && $('#viewer').classList.contains('show')) closeViewer(); });
-async function downloadFax(id, label, dateVal){
+async function downloadFax(id, label, dateVal, item){
   try{
+    // 取引先が未登録なら先にWeb検索で会社名を調べ、見つかれば登録してその名前でファイル名を付ける
+    if(item && !item.vendor && item.faxNum){
+      const nm = await lookupVendor(item, {force:true});
+      if(nm) label = nm;
+    }
     // ファイル名は FAX_年月日_取引先名（eFax元添付の連番名は使わない）
     const d = dateVal ? new Date(dateVal) : null;
     const ymd = (d && !isNaN(d)) ? `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}` : '';
@@ -948,6 +957,44 @@ async function downloadFax(id, label, dateVal){
       setTimeout(()=>URL.revokeObjectURL(url), 30000);
     });
   }catch(err){ toast('ダウンロード失敗: '+err); }
+}
+
+/* ==== 未登録番号の会社名をWeb検索→取引先に自動登録 ==== */
+const lookupBusy = new Set();
+async function lookupVendor(item, opts={}){
+  const num = String(item.faxNum||'').replace(/\D/g,'');
+  if(item.vendor) return item.vendor;
+  if(!num || num.length < 9) return '';
+  if(lookupBusy.has(num)) return '';
+  const lk = 'fd_lk_' + num;
+  if(!opts.force){ try{ if(Date.now() - Number(localStorage.getItem(lk)||0) < 86400000) return ''; }catch(_){} }
+  lookupBusy.add(num);
+  if(!opts.quiet) toast('🔍 ' + fmtNum(item.faxNum) + ' の会社名をWeb検索中…（30秒ほど）', 30000);
+  try{
+    const r = await apiPost({action:'lookupvendor', faxNum:num});
+    try{ localStorage.setItem(lk, String(Date.now())); }catch(_){}
+    if(r.ok && r.found && r.name){
+      INBOX.forEach(x=>{ if(!x.vendor && String(x.faxNum||'').replace(/\D/g,'')===num) x.vendor = r.name; });
+      item.vendor = r.name; saveInboxCache(); renderInbox();
+      if(selInboxId===item.msgId){ const t=$('#inbox-preview .ttl'); if(t) t.textContent = r.name; }
+      const et = $('#ed-title'); if(et && $('#editor').classList.contains('show') && edState && edState.item===item) et.textContent = '編集：' + r.name;
+      if(r.registered){
+        apiGet('contacts').then(c=>{ if(c.ok){ CONTACTS = c.contacts||[]; try{ localStorage.setItem('fd_contacts', JSON.stringify(CONTACTS)); }catch(_){} try{ renderSingleCatChips(); }catch(_){} } }).catch(()=>{});
+      }
+      toast((r.registered ? '✅ Web検索で特定→取引先に登録: ' : '✅ 会社名: ') + r.name + (r.confidence ? '（確度' + r.confidence + '）' : ''), 6000);
+      return r.name;
+    }
+    if(!opts.quiet) toast(r.ok ? '🔍 Web検索しましたが会社名は見つかりませんでした' : ('検索エラー: ' + (r.error||'')), 4500);
+  }catch(err){ if(!opts.quiet) toast('検索エラー: ' + err, 4500); }
+  finally{ lookupBusy.delete(num); }
+  return '';
+}
+// 受信一覧の取引先不明を裏で順に検索（1番号につき1日1回・サーバー側は見つからずを30日記憶）
+async function autoLookupUnknown(){
+  for(const r of INBOX.slice()){
+    if(r.vendor || !r.faxNum) continue;
+    await lookupVendor(r, {quiet:true});
+  }
 }
 
 /* ==== 送信モード ==== */
@@ -1580,7 +1627,7 @@ async function selectInbox(item){
   };
   $('#ip-reply').onclick = ()=>prefillReply(item);
   $('#ip-edit').onclick = ()=>openEditor(item);
-  $('#ip-dl').onclick = ()=>downloadFax(item.msgId, item.vendor||item.faxNum, item.date);
+  $('#ip-dl').onclick = ()=>downloadFax(item.msgId, item.vendor||item.faxNum, item.date, item);
   $('#ip-print').onclick = ()=>printFax(item);
   $('#ip-rot').onclick = ()=>{ setRot(item.msgId, getRot(item.msgId)+90); drawInboxPreview(item); };
   $('#ip-zoomin').onclick  = ()=>stepIpZoom(1);
@@ -1930,6 +1977,7 @@ async function openEditor(item){
   $('#ed-pages').innerHTML = `<div class="ed-hint" style="text-align:center;padding:40px"><span class="spin"></span> 読み込み中…</div>`;
   $('#ed-stamps').classList.add('hidden');
   setEdTool(null);
+  $('#ed-dl').onclick = ()=>downloadFax(item.msgId, item.vendor||item.faxNum, item.date, item);
   $('#editor').classList.add('show'); document.body.style.overflow='hidden';
   try{
     edState.files = await getFaxFiles(item.msgId);
@@ -2197,6 +2245,7 @@ async function loadInbox(){
       saveInboxCache();
       if(!$('#tab-inbox').classList.contains('hidden')) renderInbox(); else renderInboxFilters();
       schedulePrefetch(); // 未処理を優先して裏で先読み
+      autoLookupUnknown(); // 取引先不明の番号をWeb検索で解決
     }
     else toast('受信の取得に失敗: ' + (r.error||''));
   }catch(err){ /* 通信不良でも前回キャッシュ表示を維持 */ }
