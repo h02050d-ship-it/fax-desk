@@ -486,7 +486,8 @@ textarea{resize:vertical; min-height:130px}
     <button class="ed-tool" id="ed-tool-text">🅣 文字を追加</button>
     <button class="ed-tool" id="ed-tool-stamp">🖋 印鑑</button>
     <button class="ed-tool" id="ed-tool-date">📅 日付</button>
-    <button class="ed-tool ghost" id="ed-rotate">🔄 回転</button>
+    <button class="ed-tool ghost" id="ed-rotate-l" title="左に90度回転">↺ 左回転</button>
+    <button class="ed-tool ghost" id="ed-rotate" title="右に90度回転">↻ 右回転</button>
     <button class="ed-tool ghost" id="ed-undo">↩︎ 元に戻す</button>
     <button class="ed-tool ghost" id="ed-dl" title="このFAXをPDFで保存（FAX_日付_取引先名）">⬇️ 保存</button>
     <span class="ed-hint" id="ed-status"></span>
@@ -1605,7 +1606,8 @@ async function selectInbox(item){
       <select id="ip-status">${INBOX_STATUSES.map(s=>`<option ${s===item.status?'selected':''}>${s}</option>`).join('')}</select>
       <button class="abtn" id="ip-ai" style="background:var(--blue);color:#fff;border-color:var(--blue)">🤖 AI読み取り</button>
       <span class="ip-zoom"><button id="ip-zoomout" title="縮小">−</button><span class="lv" id="ip-zoomlv">100%</span><button id="ip-zoomin" title="拡大">＋</button></span>
-      <button class="abtn" id="ip-rot" title="90度回転">🔄 回転</button>
+      <button class="abtn" id="ip-rot-l" title="左に90度回転">↺ 左</button>
+      <button class="abtn" id="ip-rot" title="右に90度回転">↻ 右</button>
       <button class="abtn primary" id="ip-edit">✏️ 編集して返信</button>
       <button class="abtn" id="ip-reply">↩️ 返信</button>
       <button class="abtn" id="ip-print" title="印刷">🖨️ 印刷</button>
@@ -1629,7 +1631,8 @@ async function selectInbox(item){
   $('#ip-edit').onclick = ()=>openEditor(item);
   $('#ip-dl').onclick = ()=>downloadFax(item.msgId, item.vendor||item.faxNum, item.date, item);
   $('#ip-print').onclick = ()=>printFax(item);
-  $('#ip-rot').onclick = ()=>{ setRot(item.msgId, getRot(item.msgId)+90); drawInboxPreview(item); };
+  $('#ip-rot').onclick   = ()=>{ setRot(item.msgId, getRot(item.msgId)+90); drawInboxPreview(item); };
+  $('#ip-rot-l').onclick = ()=>{ setRot(item.msgId, getRot(item.msgId)-90); drawInboxPreview(item); };
   $('#ip-zoomin').onclick  = ()=>stepIpZoom(1);
   $('#ip-zoomout').onclick = ()=>stepIpZoom(-1);
   applyIpZoom();
@@ -2006,9 +2009,9 @@ async function renderEditorPages(){
     }
   }
 }
-async function rotateEditor(){
+async function rotateEditor(dir=1){
   if(document.querySelectorAll('.ed-obj').length && !confirm('回転すると配置済みの文字・印鑑は消えます。回転しますか？')) return;
-  edState.rot=((edState.rot+90)%360); setRot(edState.item.msgId, edState.rot); setEdTool(null);
+  edState.rot=(((edState.rot+90*dir)%360)+360)%360; setRot(edState.item.msgId, edState.rot); setEdTool(null);
   await renderEditorPages();
 }
 function addEdPage(dispW, dispH, dpr){
@@ -2154,7 +2157,8 @@ $('#ed-tool-stamp').onclick=()=>{
   const show=$('#ed-stamps').classList.toggle('hidden')===false;
   if(show && !edGetStamps().length){ toast('まず「＋印鑑を追加」で会社印の画像を登録してください', 3500); }
 };
-$('#ed-rotate').onclick=rotateEditor;
+$('#ed-rotate').onclick=()=>rotateEditor(1);
+$('#ed-rotate-l').onclick=()=>rotateEditor(-1);
 $('#ed-undo').onclick=()=>{ const o=edState.history.pop(); if(o) o.remove(); };
 $('#ed-cancel').onclick=closeEditor;
 $('#ed-done').onclick=exportEditor;
