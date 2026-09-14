@@ -684,6 +684,14 @@ function fmtDate(iso){
   return `${d.getMonth()+1}/${d.getDate()}(${wd}) ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 function vendorOf(num){ const c = CONTACTS.find(x=>x.num===fmtNum(num)); return c ? c.name : ''; }
+// 未登録番号か（取引先マスタにも、FAX台帳＝受信/送信履歴の取引先名つき番号にも無い）。宛先間違いの検知用（2026-09-14）
+let cfUnregistered = false;   // 送信前確認モーダルで「未登録の番号」だった時 true（cf-ok でもう1段 confirm）
+function isKnownFax(num){
+  const d = String(num||'').replace(/[^\d]/g,''); if(!d) return false;
+  if(vendorOf(d)) return true;
+  const hit = x => x && x.vendor && String(x.faxNum||'').replace(/\D/g,'')===d;
+  return (INBOX||[]).some(hit) || (SENT||[]).some(hit);
+}
 
 /* ==== PDFサムネイル・キャッシュ ==== */
 const pdfCache = new Map();        // id -> files[]（セッション内）
@@ -1472,7 +1480,11 @@ $('#btn-send').onclick = ()=>{
     const name = selContact ? selContact.name : vendorOf(n);
     $('#cf-title').textContent = 'この内容でFAXを送信しますか？';
     $('#cf-vendor').innerHTML = `${esc(name||'（未登録の番号）')}　${esc(fmtNum(n))}`;
+    // 手入力番号が取引先マスタ/FAX台帳に無い＝宛先間違いの可能性。赤字で目立たせ、送信ボタンでもう1段止める
+    cfUnregistered = !selContact && !isKnownFax(n);
+    if(cfUnregistered) $('#cf-vendor').innerHTML += `<div style="color:var(--red);font-weight:700;margin-top:4px">⚠️ 未登録の番号です。宛先を間違えていませんか？</div>`;
   } else {
+    cfUnregistered = false;
     if(!bulkChecked.size){ toast('一括送信の宛先を選んでください'); return; }
     const targets = CONTACTS.filter(c=>bulkChecked.has(c.num81));
     $('#cf-title').textContent = `📢 ${targets.length}件に一括送信しますか？`;
@@ -1494,6 +1506,18 @@ $('#btn-send').onclick = ()=>{
 $('#cf-cancel').onclick = ()=>$('#confirm-ov').classList.remove('show');
 $('#cf-ok').onclick = async ()=>{
   const btn = $('#cf-ok');
+  // 未登録番号への単独送信は、送る直前にもう1段確認（宛先間違い防止・2026-09-14）
+  if(sendMode==='single' && cfUnregistered){
+    if(!confirm(`⚠️ 未登録の番号 ${fmtNum(destNumber())} に送信します。\n取引先マスタにもFAX台帳にも無い番号です。宛先を間違えていませんか？\n\nこのまま送信しますか？`)) return;
+  }
+  // 一括送信は 20件以上、またはジャンルをまたぐ時に件数・ジャンルを再確認（誤送信の規模を抑える・2026-09-14）
+  if(sendMode==='bulk'){
+    const tg = CONTACTS.filter(c=>bulkChecked.has(c.num81));
+    const genres = [...new Set(tg.map(c=>c.genre||'未設定'))];
+    if(tg.length>=20 || genres.length>1){
+      if(!confirm(`${tg.length}件・ジャンル: ${genres.join(', ')} に一括送信します。\n件数と宛先を確認しましたか？`)) return;
+    }
+  }
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span>送信中…';
   try{
     const files = [];
