@@ -2350,14 +2350,15 @@ async function boot(){
   if(!CONTACTS.length){ try{ CONTACTS = JSON.parse(localStorage.getItem('fd_contacts')||'[]'); }catch(_){ CONTACTS = []; } }
   if(!CONTACTS.length){ const c = await apiGet('contacts').catch(()=>null); if(c && c.ok){ CONTACTS = c.contacts; try{ localStorage.setItem('fd_contacts', JSON.stringify(CONTACTS)); }catch(_){} } }
   renderSingleCatChips();
-  loadInbox();
-  loadSent();
+  loadInbox().then(loadSent);   // 受信を先に取得し終えてから送信履歴（同時に投げるとGAS側で取り合いになり受信が遅くなる）2026-09-18
   loadPresets();
   loadStamps();
   if(!window._auto){
     // 60秒ごとに自動更新（未処理の先読みも都度走る）※台帳側はGASの5分毎トリガー(inboxTick)でも同期
-    window._auto = setInterval(()=>{ if(!document.hidden){ loadInbox(); loadSent(); } }, 60000);
-    document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ loadInbox(); loadSent(); } });
+    // 送信履歴は履歴タブを見ている時か5分に1回だけ（重い＝約70KB・GAS十数秒）
+    let _tick=0;
+    window._auto = setInterval(()=>{ if(document.hidden) return; _tick++; loadInbox().then(()=>{ if(!$('#tab-history').classList.contains('hidden') || _tick%5===0) loadSent(); }); }, 60000);
+    document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ loadInbox().then(()=>{ if(!$('#tab-history').classList.contains('hidden')) loadSent(); }); } });
   }
 }
 
