@@ -337,6 +337,7 @@ textarea{resize:vertical; min-height:130px}
     <div class="hsp"></div>
     <button class="iconbtn" id="btn-faxfolder" onclick="window.open('https://drive.google.com/drive/folders/1KstmyX4dGs0mNlJ16bCNj0CFVwL9sAaS','_blank')">📁 FAXフォルダ</button>
     <select class="iconbtn op-sel" id="op-sel" style="flex:0 0 auto;width:auto;max-width:190px" title="このPCから送るFAXに「誰が送ったか」を記録します（やりとりログ）"></select>
+    <span id="sync-state" style="font-size:12px;color:#888;white-space:nowrap" title="受信一覧の取得状態"></span>
     <button class="iconbtn" id="btn-refresh">🔄 更新</button>
     <button class="iconbtn" id="btn-logout">ログアウト</button>
   </div>
@@ -2297,7 +2298,15 @@ function applyPendingStatus(rows){
   savePending();
   return rows;
 }
+function setSyncState(kind){
+  const el=$('#sync-state'); if(!el) return;
+  const hm=new Date().toTimeString().slice(0,5);
+  if(kind==='busy'){ el.textContent='⏳ 最新を取得中…'; el.style.color='#888'; }
+  else if(kind==='ok'){ el.textContent='最終更新 '+hm; el.style.color='#888'; }
+  else { el.textContent='⚠ 更新失敗 '+hm+'（前回取得分を表示中）'; el.style.color='#c0392b'; }
+}
 async function loadInbox(){
+  setSyncState('busy');
   try{
     const r = await apiGet('inbox');
     if(r.ok){
@@ -2306,9 +2315,10 @@ async function loadInbox(){
       if(!$('#tab-inbox').classList.contains('hidden')) renderInbox(); else renderInboxFilters();
       schedulePrefetch(); // 未処理を優先して裏で先読み
       autoLookupUnknown(); // 取引先不明の番号をWeb検索で解決
+      setSyncState('ok');
     }
-    else toast('受信の取得に失敗: ' + (r.error||''));
-  }catch(err){ /* 通信不良でも前回キャッシュ表示を維持 */ }
+    else { setSyncState('ng'); toast('受信の取得に失敗: ' + (r.error||'')); }
+  }catch(err){ setSyncState('ng'); toast('受信の取得に失敗（通信）: 前回取得分を表示しています'); }
 }
 async function loadSent(){
   try{
@@ -2345,8 +2355,8 @@ async function boot(){
   loadPresets();
   loadStamps();
   if(!window._auto){
-    // 90秒ごとに自動更新（未処理の先読みも都度走る）
-    window._auto = setInterval(()=>{ if(!document.hidden){ loadInbox(); loadSent(); } }, 90000);
+    // 60秒ごとに自動更新（未処理の先読みも都度走る）※台帳側はGASの5分毎トリガー(inboxTick)でも同期
+    window._auto = setInterval(()=>{ if(!document.hidden){ loadInbox(); loadSent(); } }, 60000);
     document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ loadInbox(); loadSent(); } });
   }
 }
