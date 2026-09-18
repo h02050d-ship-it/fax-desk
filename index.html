@@ -615,8 +615,9 @@ async function apiGet(action, params={}){
   for(const [k,v] of Object.entries(params)) u.searchParams.set(k, v);
   // GETは読み取り専用なので、GASが断続的に返す404/HTMLは2秒後に1回だけやり直す（送信POSTは対象外）2026-09-18
   for(let i=0;i<2;i++){
-    try{ const res = await fetch(u.toString()); const t = await res.text(); return JSON.parse(t); }
-    catch(e){ if(i===1) throw e; await new Promise(r=>setTimeout(r,2000)); }
+    const ac = new AbortController(); const tm = setTimeout(()=>ac.abort(), 20000);   // GASが36〜72秒だんまり→404になる日があるので20秒で見切って再試行
+    try{ const res = await fetch(u.toString(), {signal: ac.signal}); const t = await res.text(); clearTimeout(tm); return JSON.parse(t); }
+    catch(e){ clearTimeout(tm); if(i===1) throw e; await new Promise(r=>setTimeout(r,2000)); }
   }
 }
 const RL_API=API_URL;
