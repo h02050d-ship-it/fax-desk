@@ -613,8 +613,11 @@ async function apiGet(action, params={}){
   u.searchParams.set('email', CRED.email);
   u.searchParams.set('pass', CRED.pass);
   for(const [k,v] of Object.entries(params)) u.searchParams.set(k, v);
-  const res = await fetch(u.toString());
-  return res.json();
+  // GETは読み取り専用なので、GASが断続的に返す404/HTMLは2秒後に1回だけやり直す（送信POSTは対象外）2026-09-18
+  for(let i=0;i<2;i++){
+    try{ const res = await fetch(u.toString()); const t = await res.text(); return JSON.parse(t); }
+    catch(e){ if(i===1) throw e; await new Promise(r=>setTimeout(r,2000)); }
+  }
 }
 const RL_API=API_URL;
 /* ==== このPCの使用者（やりとりログ共通。localStorage hayazai_operator / hayazai_staff） ==== */
