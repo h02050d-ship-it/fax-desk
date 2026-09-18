@@ -648,16 +648,21 @@ async function apiPost(obj){
 }
 
 /* ==== ログイン ==== */
+/* 戻り値: true=認証OK / false=パスワード違い(unauthorized) / null=判定不能(通信断・GAS一時404など。保存済みログインは消さない) */
 async function tryLogin(email, pass){
+  const prev = CRED;
   CRED = {email, pass};
-  const r = await apiGet('contacts').catch(()=>({ok:false}));
-  if(r.ok){
+  let r;
+  try{ r = await apiGet('contacts'); }catch(e){ r = {ok:false, error:'network:'+(e&&e.message||e)}; }
+  if(r && r.ok){
     localStorage.setItem(LSK, JSON.stringify(CRED)); ssoWrite(email, pass);
     CONTACTS = r.contacts||[];
     try{ localStorage.setItem('fd_contacts', JSON.stringify(CONTACTS)); }catch(_){}
     return true;
   }
-  CRED = null; return false;
+  if(r && r.error==='unauthorized'){ CRED = null; return false; }
+  console.warn('[fax-desk] 認証判定不能(一時障害)', r && r.error);
+  CRED = prev; return null;
 }
 $('#g-btn').onclick = async ()=>{
   const email = $('#g-email').value.trim(), pass = $('#g-pass').value;
@@ -666,6 +671,7 @@ $('#g-btn').onclick = async ()=>{
   const ok = await tryLogin(email, pass);
   $('#g-btn').disabled = false;
   if(ok){ $('#gate').classList.add('hidden'); boot(); }
+  else if(ok===null){ CRED = null; $('#g-msg').textContent='サーバーに接続できませんでした（一時的な障害）。少し待ってもう一度お試しください'; }
   else $('#g-msg').textContent='ログインできませんでした（メール／パスワードをご確認ください）';
 };
 $('#g-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#g-btn').click(); });
@@ -2367,9 +2373,13 @@ async function boot(){
   if(CRED && CRED.email){
     $('#gate').classList.add('hidden');
     boot();   // 認証確認を待たずキャッシュで即表示（v35高速化）
-    const ok = await tryLogin(CRED.email, CRED.pass);   // 裏で認証＋取引先の最新化
+    // 裏で認証＋取引先の最新化。通信断・GASの一時404(null)ではログアウトしない＝保存済みログインで継続し、少し待って再確認
+    // （旧: 一時障害でも認証情報を消してログイン画面を出していた＝「ちょくちょくログインを求められる」原因）
+    let ok = await tryLogin(CRED.email, CRED.pass);
+    for(let i=0; ok===null && i<3; i++){ await new Promise(r=>setTimeout(r, 20000*(i+1))); ok = await tryLogin(CRED.email, CRED.pass); }
     if(ok){ renderSingleCatChips(); }
-    else { localStorage.removeItem(LSK); ssoClear(); $('#gate').classList.remove('hidden'); }
+    else if(ok===false){ localStorage.removeItem(LSK); ssoClear(); $('#gate').classList.remove('hidden'); }
+    else { toast('サーバー応答なし（保存済みログインで継続中）', 4000); }
   }
 })();
 </script>
