@@ -617,7 +617,7 @@ async function apiGet(action, params={}){
   for(const [k,v] of Object.entries(params)) u.searchParams.set(k, v);
   // GETは読み取り専用なので、GASが断続的に返す404/HTMLは2秒後に1回だけやり直す（送信POSTは対象外）2026-09-18
   for(let i=0;i<2;i++){
-    const ac = new AbortController(); const tm = setTimeout(()=>ac.abort(), 20000);   // GASが36〜72秒だんまり→404になる日があるので20秒で見切って再試行
+    const ac = new AbortController(); const tm = setTimeout(()=>ac.abort(), 35000);   // GASが36〜72秒だんまり→404になる日があるので見切って再試行（受信一覧は通常でも10〜20秒かかるので35秒。9/25 20秒だと正常応答まで打ち切っていた）
     try{ const res = await fetch(u.toString(), {signal: ac.signal}); const t = await res.text(); clearTimeout(tm); return JSON.parse(t); }
     catch(e){ clearTimeout(tm); if(i===1) throw e; await new Promise(r=>setTimeout(r,2000)); }
   }
