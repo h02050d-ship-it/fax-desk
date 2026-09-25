@@ -225,6 +225,17 @@ textarea{resize:vertical; min-height:130px}
 /* 受信2カラム */
 .inbox-2col{display:grid; grid-template-columns:minmax(220px,248px) minmax(0,1fr); gap:12px; align-items:start}
 .inbox-left{display:flex; flex-direction:column; gap:10px}
+.isearch{display:flex; gap:6px}
+.isearch .iq-wrap{position:relative; flex:1; min-width:0; display:flex}
+.isearch input{flex:1; min-width:0; border:1px solid var(--line); border-radius:8px; padding:7px 24px 7px 9px; font-size:13px}
+.isearch input::-webkit-search-cancel-button{display:none}
+.isearch .iq-x{position:absolute; right:3px; top:50%; transform:translateY(-50%); border:none; background:none; color:var(--sub); cursor:pointer; font-size:13px; padding:2px 5px; display:none}
+.isearch select{flex:0 0 84px; width:84px; border:1px solid var(--line); border-radius:8px; padding:6px 2px; font-size:12.5px; background:#fff}
+.igrp{position:sticky; top:0; z-index:1; background:#eef2f7; color:var(--sub); font-size:11.5px; font-weight:800; padding:4px 12px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; gap:8px}
+.igrp span:first-child{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+#inbox-filters{margin-bottom:0}
+.ip-bar .ttl.clk{cursor:pointer}
+.ip-bar .ttl.clk:hover{text-decoration:underline}
 .ilist{border:1px solid var(--line); border-radius:12px; background:#fff; overflow-y:auto; max-height:calc(100vh - 210px)}
 .irow{display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--line); cursor:pointer}
 .irow:last-child{border-bottom:none}
@@ -456,6 +467,15 @@ textarea{resize:vertical; min-height:130px}
   <section id="tab-inbox">
     <div class="inbox-2col">
       <div class="inbox-left">
+        <div class="isearch">
+          <span class="iq-wrap"><input id="inbox-q" type="search" list="inbox-vendors" placeholder="🔍 取引先・番号・メモ" autocomplete="off"><button class="iq-x" id="inbox-qx" title="クリア">✕</button></span>
+          <select id="inbox-sort" title="並び順">
+            <option value="new">新しい順</option>
+            <option value="old">古い順</option>
+            <option value="vendor">取引先順</option>
+          </select>
+        </div>
+        <datalist id="inbox-vendors"></datalist>
         <div class="filters" id="inbox-filters"></div>
         <div class="ilist" id="inbox-list"><div class="empty">読み込み中…</div></div>
       </div>
@@ -599,6 +619,8 @@ let SENT = [];
 let selContact = null;
 let attach = [];
 let inboxFilter = '未対応';
+let inboxQ = '';
+let inboxSort = (()=>{ try{ return localStorage.getItem('fd_isort')||'new'; }catch(_){ return 'new'; } })();
 let sendMode = 'single';
 let bulkGenre = '';
 let bulkChecked = new Set();   // num81
@@ -1622,16 +1644,39 @@ function pillClass(st){
   if(st==='対応済') return 'p-green';
   return 'p-gray';
 }
+// 検索用の正規化（全角半角・大小・カタカナ→ひらがな・記号/空白/法人格を無視）
+function qNorm(s){
+  return String(s||'').normalize('NFKC').toLowerCase()
+    .replace(/[\u30a1-\u30f6]/g, c=>String.fromCharCode(c.charCodeAt(0)-0x60))
+    .replace(/株式会社|有限会社|合同会社/g,'')
+    .replace(/[\s\-‐－()（）・.,、。「」]/g,'');
+}
+function inboxContact(r){
+  const n = fmtNum(r.faxNum);
+  return CONTACTS.find(c=>c.num===n) || (r.vendor ? CONTACTS.find(c=>c.name===r.vendor) : null) || null;
+}
+function inboxReading(r){
+  const c = inboxContact(r);
+  return c ? readingOf(c) : sortKey(r.vendor || '');
+}
+function inboxMatchesQ(r){
+  if(!inboxQ) return true;
+  const terms = inboxQ.split(/[\s　]+/).map(qNorm).filter(Boolean);
+  const c = inboxContact(r);
+  const hay = qNorm([r.vendor, c&&c.name, c&&c.yomi, r.faxNum, fmtNum(r.faxNum), r.memo, fmtDate(r.date)].join('|'));
+  return terms.every(t=>hay.includes(t));
+}
 function renderInboxFilters(){
-  const counts = {all: INBOX.length};
-  INBOX_STATUSES.forEach(s=>counts[s]=INBOX.filter(r=>r.status===s).length);
+  const base = INBOX.filter(inboxMatchesQ);
+  const counts = {all: base.length};
+  INBOX_STATUSES.forEach(s=>counts[s]=base.filter(r=>r.status===s).length);
   $('#inbox-filters').innerHTML =
     INBOX_STATUSES.map(s=>`<span class="fchip ${inboxFilter===s?'on':''}" data-f="${s}">${s} ${counts[s]}</span>`).join('') +
     `<span class="fchip ${inboxFilter==='all'?'on':''}" data-f="all">すべて ${counts.all}</span>`;
   document.querySelectorAll('#inbox-filters .fchip').forEach(el=>{
     el.onclick = ()=>{ inboxFilter = el.dataset.f; renderInbox(); };
   });
-  const pending = (counts['未対応']||0) + (counts['要返信']||0);
+  const pending = INBOX.filter(r=>r.status==='未対応'||r.status==='要返信').length;
   const b = $('#inbox-badge');
   if(pending>0){ b.textContent = pending; b.style.display='inline-block'; } else b.style.display='none';
 }
@@ -1644,15 +1689,31 @@ function thumbHolder(id, pillHtml, pagesHtml){
 let selInboxId = null;
 function dotColor(st){ return st==='未対応'?'#dc2626':st==='要返信'?'#d97706':st==='返信済'?'#2563eb':st==='対応済'?'#16a34a':'#9aa7b5'; }
 function renderInbox(){
+  initInboxSearch(); refreshInboxVendors();
   renderInboxFilters();
-  const rows = INBOX.filter(r=>inboxFilter==='all' || r.status===inboxFilter);
+  const rows = INBOX.filter(r=>(inboxFilter==='all' || r.status===inboxFilter) && inboxMatchesQ(r));
+  const tm = r=>{ const v=new Date(r.date).getTime(); return isNaN(v)?0:v; };
+  if(inboxSort==='old') rows.sort((a,b)=>tm(a)-tm(b));
+  else if(inboxSort==='vendor') rows.sort((a,b)=>{
+    const ua=!a.vendor, ub=!b.vendor; if(ua!==ub) return ua?1:-1;   // 不明は最後
+    return inboxReading(a).localeCompare(inboxReading(b),'ja')
+      || String(a.vendor||fmtNum(a.faxNum)).localeCompare(String(b.vendor||fmtNum(b.faxNum)),'ja')
+      || tm(b)-tm(a);
+  });
+  else rows.sort((a,b)=>tm(b)-tm(a));
   // 選択中のFAXが絞り込みから外れたらプレビューも消す（残ると紛らわしい）
   if(selInboxId && !rows.some(r=>r.msgId===selInboxId)){
     selInboxId = null;
     $('#inbox-preview').innerHTML = '<div class="ip-empty">← 左の一覧からFAXを選ぶと<br>ここに大きく表示されます</div>';
   }
-  if(!rows.length){ $('#inbox-list').innerHTML = '<div class="empty">該当する受信FAXはありません</div>'; return; }
-  $('#inbox-list').innerHTML = rows.map(r=>`
+  if(!rows.length){ $('#inbox-list').innerHTML = `<div class="empty">該当する受信FAXはありません${inboxQ&&inboxFilter!=='all'?'<br><small>（「すべて」にすると対応済も含めて探せます）</small>':''}</div>`; return; }
+  const gkey = r=>r.vendor || ('不明 '+fmtNum(r.faxNum));
+  const gcount = {}; if(inboxSort==='vendor') rows.forEach(r=>{ const k=gkey(r); gcount[k]=(gcount[k]||0)+1; });
+  let prevG = null;
+  $('#inbox-list').innerHTML = rows.map(r=>{
+    let head = '';
+    if(inboxSort==='vendor'){ const k=gkey(r); if(k!==prevG){ prevG=k; head=`<div class="igrp"><span>${esc(k)}</span><span>${gcount[k]}件</span></div>`; } }
+    return head + `
     <div class="irow ${r.msgId===selInboxId?'sel':''}" data-id="${esc(r.msgId)}">
       <span class="idot" style="background:${dotColor(r.status)}"></span>
       <div class="iv">
@@ -1660,10 +1721,32 @@ function renderInbox(){
         <div class="ivm">${fmtDate(r.date)}｜${esc(fmtNum(r.faxNum))}${r.pages?`｜${r.pages}枚`:''}</div>
       </div>
       <span class="ist ${pillClass(r.status)}">${esc(r.status)}</span>
-    </div>`).join('');
+    </div>`; }).join('');
   document.querySelectorAll('#inbox-list .irow').forEach(el=>{
     el.onclick = ()=>{ const r = INBOX.find(x=>x.msgId===el.dataset.id); if(r) selectInbox(r); };
   });
+}
+function setInboxQ(q, allStatus){
+  inboxQ = String(q||'').trim();
+  const el = $('#inbox-q'); if(el && el.value!==inboxQ) el.value = inboxQ;
+  $('#inbox-qx').style.display = inboxQ ? 'block' : 'none';
+  if(allStatus && inboxQ) inboxFilter = 'all';
+  renderInbox();
+}
+function initInboxSearch(){
+  const q = $('#inbox-q'), so = $('#inbox-sort');
+  if(!q || q._init) return; q._init = true;
+  let t; q.oninput = ()=>{ clearTimeout(t); t = setTimeout(()=>setInboxQ(q.value), 120); };
+  q.onkeydown = e=>{ if(e.key==='Escape') setInboxQ(''); };
+  $('#inbox-qx').onclick = ()=>{ setInboxQ(''); q.focus(); };
+  so.value = inboxSort;
+  so.onchange = ()=>{ inboxSort = so.value; try{ localStorage.setItem('fd_isort', inboxSort); }catch(_){} renderInbox(); };
+}
+function refreshInboxVendors(){
+  const dl = $('#inbox-vendors'); if(!dl) return;
+  const names = [...new Set(INBOX.map(r=>r.vendor).filter(Boolean))].sort((a,b)=>sortKey(a).localeCompare(sortKey(b),'ja'));
+  const key = names.join('\n'); if(dl._key===key) return; dl._key = key;
+  dl.innerHTML = names.map(n=>`<option value="${esc(n)}">`).join('');
 }
 async function selectInbox(item){
   selInboxId = item.msgId;
@@ -1671,7 +1754,7 @@ async function selectInbox(item){
   const pane = $('#inbox-preview');
   pane.innerHTML = `
     <div class="ip-bar">
-      <span class="ttl">${esc(item.vendor || '不明 '+fmtNum(item.faxNum))}</span>
+      <span class="ttl clk" id="ip-ttl" title="クリックでこの取引先の受信FAXだけ表示">${esc(item.vendor || '不明 '+fmtNum(item.faxNum))}</span>
       <select id="ip-status">${INBOX_STATUSES.map(s=>`<option ${s===item.status?'selected':''}>${s}</option>`).join('')}</select>
       <button class="abtn" id="ip-ai" style="background:var(--blue);color:#fff;border-color:var(--blue)">🤖 AI読み取り</button>
       <span class="ip-zoom"><button id="ip-zoomout" title="縮小">−</button><span class="lv" id="ip-zoomlv">100%</span><button id="ip-zoomin" title="拡大">＋</button></span>
@@ -1696,6 +1779,7 @@ async function selectInbox(item){
     const r = await apiPost({action:'status', msgId:item.msgId, memo:item.memo});
     if(!r.ok) toast('メモの保存に失敗しました');
   };
+  $('#ip-ttl').onclick = ()=>setInboxQ(item.vendor || fmtNum(item.faxNum), true);
   $('#ip-reply').onclick = ()=>prefillReply(item);
   $('#ip-edit').onclick = ()=>openEditor(item);
   $('#ip-dl').onclick = ()=>downloadFax(item.msgId, item.vendor||item.faxNum, item.date, item);
