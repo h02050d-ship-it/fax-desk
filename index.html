@@ -637,12 +637,26 @@ async function apiGet(action, params={}){
   u.searchParams.set('email', CRED.email);
   u.searchParams.set('pass', CRED.pass);
   for(const [k,v] of Object.entries(params)) u.searchParams.set(k, v);
-  // GETは読み取り専用なので、GASが断続的に返す404/HTMLは2秒後に1回だけやり直す（送信POSTは対象外）2026-09-18
-  for(let i=0;i<2;i++){
-    const ac = new AbortController(); const tm = setTimeout(()=>ac.abort(), 35000);   // GASが36〜72秒だんまり→404になる日があるので見切って再試行（受信一覧は通常でも10〜20秒かかるので35秒。9/25 20秒だと正常応答まで打ち切っていた）
-    try{ const res = await fetch(u.toString(), {signal: ac.signal}); const t = await res.text(); clearTimeout(tm); return JSON.parse(t); }
-    catch(e){ clearTimeout(tm); if(i===1) throw e; await new Promise(r=>setTimeout(r,2000)); }
-  }
+  // GETは読み取り専用（送信POSTは対象外）。Googleの結果配信(echo)が断続的に約30秒だんまり→404になる。
+  // 2026-10-01実測: スクリプト自体は1〜4秒で完走しているのに配信だけ詰まり、受信一覧が取れず古い表示のままになった（台帳には入っていた）。
+  // 旧方式(35秒待って打ち切り→1回だけやり直し)は2回とも詰まると70秒かけて失敗する。
+  // →先に投げた分は生かしたまま STEP 秒ごとに次を並走させ、最初に返った正常応答を採用する（遅いだけの正常応答も打ち切らない）
+  const heavy = (action === 'pdf' || action === 'sent');   // 重い取得は並走を控えめに（GAS側の実行が重なるため）
+  const STEP = heavy ? 15000 : 8000, MAXTRY = heavy ? 3 : 5, DEADLINE = heavy ? 75000 : 50000;
+  return new Promise((resolve, reject)=>{
+    const acs = [], timers = []; let done = false, started = 0, ended = 0, lastErr = null;
+    const finish = (fn, v)=>{ if(done) return; done = true; timers.forEach(clearTimeout); acs.forEach(a=>{ try{ a.abort(); }catch(_){} }); fn(v); };
+    const start = ()=>{
+      if(done || started >= MAXTRY) return;
+      started++;
+      const ac = new AbortController(); acs.push(ac);
+      fetch(u.toString(), {signal: ac.signal}).then(res=>res.text()).then(t=>finish(resolve, JSON.parse(t)))
+        .catch(e=>{ lastErr = e; ended++; if(done) return; if(ended >= MAXTRY) finish(reject, e); else if(ended >= started) start(); });
+      if(started < MAXTRY) timers.push(setTimeout(start, STEP));
+    };
+    timers.push(setTimeout(()=>finish(reject, lastErr || new Error('timeout')), DEADLINE));
+    start();
+  });
 }
 const RL_API=API_URL;
 /* ==== このPCの使用者（やりとりログ共通。localStorage hayazai_operator / hayazai_staff） ==== */
