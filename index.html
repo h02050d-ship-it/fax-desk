@@ -351,7 +351,7 @@ textarea{resize:vertical; min-height:130px}
     <button class="iconbtn" id="btn-faxfolder" onclick="window.open('https://drive.google.com/drive/folders/1KstmyX4dGs0mNlJ16bCNj0CFVwL9sAaS','_blank')">📁 FAXフォルダ</button>
     <select class="iconbtn op-sel" id="op-sel" style="flex:0 0 auto;width:auto;max-width:190px" title="このPCから送るFAXに「誰が送ったか」を記録します（やりとりログ）"></select>
     <span id="sync-state" style="font-size:12px;color:#888;white-space:nowrap" title="受信一覧の取得状態"></span>
-    <button class="iconbtn" id="btn-refresh">🔄 更新</button>
+    <button class="iconbtn" id="btn-refresh" aria-label="受信一覧を再読込">🔄 更新</button>
     <button class="iconbtn" id="btn-logout">ログアウト</button>
   </div>
 </header>
@@ -360,7 +360,7 @@ textarea{resize:vertical; min-height:130px}
   <div class="tabs">
     <div class="tab on" data-tab="inbox">📥 受信FAX<span class="badge" id="inbox-badge"></span></div>
     <div class="tab" data-tab="send">📤 送信</div>
-    <div class="tab" data-tab="history">📜 送信履歴</div>
+    <div class="tab" data-tab="history" aria-label="FAXの履歴タブ">📜 送信履歴</div>
   </div>
 
   <!-- ============ 送信 ============ -->
@@ -2149,6 +2149,7 @@ async function openEditor(item){
   setEdTool(null);
   $('#ed-dl').onclick = ()=>downloadFax(item.msgId, item.vendor||item.faxNum, item.date, item);
   $('#editor').classList.add('show'); document.body.style.overflow='hidden';
+  $('#ed-cancel').setAttribute('aria-label','編集を閉じる'); // 何も書き込まずに閉じる＝閲覧。計測(tu.js)で「やり直し」に数えない。書き込んだら外す（2026-10-05）
   try{
     edState.files = await getFaxFiles(item.msgId);
     await renderEditorPages();
@@ -2238,7 +2239,7 @@ function placeText(pageEl, x, y, preset){
   if(!preset.noEdit){
     setTimeout(()=>{ obj.setAttribute('contenteditable','true'); obj.focus(); const sel=window.getSelection(), rng=document.createRange(); rng.selectNodeContents(obj); sel.removeAllRanges(); sel.addRange(rng); }, 0);
   }
-  edState.history.push(obj); selectEdObj(obj);
+  edState.history.push(obj); selectEdObj(obj); $('#ed-cancel').removeAttribute('aria-label');
 }
 async function placeStamp(pageEl, x, y, dataUrl){
   const img=await loadImg(dataUrl);
@@ -2249,7 +2250,7 @@ async function placeStamp(pageEl, x, y, dataUrl){
   const h=edFrame(obj); pageEl.appendChild(obj);
   wireEdDrag(obj, pageEl, ()=>false);
   wireEdResize(h, obj, pageEl, 'stamp');
-  edState.history.push(obj); selectEdObj(obj);
+  edState.history.push(obj); selectEdObj(obj); $('#ed-cancel').removeAttribute('aria-label');
 }
 function wireEdDrag(obj, pageEl, isEditing){
   obj.addEventListener('pointerdown', e=>{
