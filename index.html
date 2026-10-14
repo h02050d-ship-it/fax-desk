@@ -1295,7 +1295,7 @@ function renderMailTargets(){
       const c = CONTACTS.find(x=>x.num81===b.dataset.n); if(!c) return;
       const mail = prompt(`${c.name} のメールアドレス（複数はカンマ区切り／空で解除）`, c.email||'');
       if(mail==null) return;
-      const r = await apiPost({action:'editcontact', num:c.num81, email:mail.trim()});
+      const r = await apiPost({action:'editcontact', num:c.num81, contactEmail:mail.trim()});
       if(r.ok){ c.email = mail.trim(); toast(mail.trim()?'メールを設定しました':'メールを解除しました'); renderTargets(); renderMailTargets(); }
       else toast(r.error||'保存に失敗しました');
     };
@@ -1406,7 +1406,7 @@ function renderGenreList(q){
       const c = CONTACTS.find(x=>x.num81===el.dataset.n); if(!c) return;
       const mail = prompt(`${c.name} のメールアドレス（複数はカンマ区切り／空にすると解除）`, c.email||'');
       if(mail==null) return;
-      const r = await apiPost({action:'editcontact', num:c.num81, email:mail.trim()});
+      const r = await apiPost({action:'editcontact', num:c.num81, contactEmail:mail.trim()});
       if(r.ok){ c.email = mail.trim(); toast(mail.trim()?'メールを設定しました':'メールを解除しました'); renderGenreList(q); }
       else toast(r.error||'保存に失敗しました');
     };
