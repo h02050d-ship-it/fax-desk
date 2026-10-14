@@ -1052,12 +1052,21 @@ async function lookupVendor(item, opts={}){
   if(item.vendor) return item.vendor;
   if(!num || num.length < 9) return '';
   if(lookupBusy.has(num)) return '';
-  const lk = 'fd_lk_' + num;
+  const lk = 'fd_lk2_' + num; // v2=FAX紙面つき検索（番号だけの旧検索で空振りした番号も1回やり直す）
   if(!opts.force){ try{ if(Date.now() - Number(localStorage.getItem(lk)||0) < 86400000) return ''; }catch(_){} }
   lookupBusy.add(num);
-  if(!opts.quiet) toast('🔍 ' + fmtNum(item.faxNum) + ' の会社名をWeb検索中…（30秒ほど）', 30000);
+  if(!opts.quiet) toast('🔍 ' + fmtNum(item.faxNum) + ' の差出人をFAX紙面とWeb検索で調査中…（30秒ほど）', 30000);
   try{
-    const r = await apiPost({action:'lookupvendor', faxNum:num});
+    // FAXの1枚目を画像化して送る（レターヘッド・社判から社名を読み、Webで裏取り）
+    let images = [];
+    if(item.msgId){
+      try{
+        const files = await getFaxFiles(item.msgId); const tmp = [];
+        await renderFaxCanvasesHiRes(files, 1400, getRot(item.msgId), cv=>tmp.push(cv), ()=>tmp.length>=1);
+        images = tmp.slice(0,1).map(c=>c.toDataURL('image/jpeg', 0.85));
+      }catch(_){ images = []; }
+    }
+    const r = await apiPost({action:'lookupvendor', faxNum:num, images});
     try{ localStorage.setItem(lk, String(Date.now())); }catch(_){}
     if(r.ok && r.found && r.name){
       INBOX.forEach(x=>{ if(!x.vendor && String(x.faxNum||'').replace(/\D/g,'')===num) x.vendor = r.name; });
@@ -1067,10 +1076,10 @@ async function lookupVendor(item, opts={}){
       if(r.registered){
         apiGet('contacts').then(c=>{ if(c.ok){ CONTACTS = c.contacts||[]; try{ localStorage.setItem('fd_contacts', JSON.stringify(CONTACTS)); }catch(_){} try{ renderSingleCatChips(); }catch(_){} } }).catch(()=>{});
       }
-      toast((r.registered ? '✅ Web検索で特定→取引先に登録: ' : '✅ 会社名: ') + r.name + (r.confidence ? '（確度' + r.confidence + '）' : ''), 6000);
+      toast((r.registered ? ('✅ ' + (/^fax\+/.test(r.model||'') ? 'FAX紙面＋Web検索' : 'Web検索') + 'で特定→取引先に登録: ') : '✅ 会社名: ') + r.name + (r.confidence ? '（確度' + r.confidence + '）' : ''), 6000);
       return r.name;
     }
-    if(!opts.quiet) toast(r.ok ? '🔍 Web検索しましたが会社名は見つかりませんでした' : ('検索エラー: ' + (r.error||'')), 4500);
+    if(!opts.quiet) toast(r.ok ? '🔍 FAX紙面とWeb検索で調べましたが会社名は見つかりませんでした' : ('検索エラー: ' + (r.error||'')), 4500);
   }catch(err){ if(!opts.quiet) toast('検索エラー: ' + err, 4500); }
   finally{ lookupBusy.delete(num); }
   return '';
